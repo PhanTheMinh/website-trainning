@@ -56,11 +56,6 @@ async function login(data) {
         }
     })
 
-    console.log('Input email:', data.email)
-    console.log('Input password:', data.password)
-    console.log('Hash password:', hashPassword(data.password))
-    console.log('User:', user)
-
     if (!user) {
         const error = new Error('Invalid email or password')
         error.statusCode = 400
@@ -73,9 +68,9 @@ async function login(data) {
         throw error
     }
 
-    console.log('DB password  :', user.password)
-    console.log('Input hash   :', hashPassword(data.password))
-    console.log('Equal        :', user.password === hashPassword(data.password))
+    // console.log('DB password  :', user.password)
+    // console.log('Input hash   :', hashPassword(data.password))
+    // console.log('Equal        :', user.password === hashPassword(data.password))
 
     if (user.status !== 'active') {
         const error = new Error('Account is not active')
@@ -83,11 +78,11 @@ async function login(data) {
         throw error
     }
 
-    const token = generateToken({
-        id: user.id,
-        email: user.email,
-        role: user.role
-    })
+    // const token = generateToken({
+    //     id: user.id,
+    //     email: user.email,
+    //     role: user.role
+    // })
 
     return {
         user: {
@@ -97,8 +92,9 @@ async function login(data) {
             phone: user.phone,
             role: user.role,
             status: user.status
-        },
-        token
+        }
+        // ,
+        // token
     }
 }
 
