@@ -44,7 +44,40 @@ async function updateProfile(req, res) {
     }
 }
 
+async function uploadAvatar(req, res) {
+    try {
+        console.log("test avt", req.files)
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                message: 'Avatar file is required'
+            })
+        }
+        console.log("File ảnh: ",req.file)
+
+        const avatarUrl =
+            `/uploads/avatars/${req.file.filename}`
+
+        return res.status(200).json({
+            success: true,
+            message: 'Avatar uploaded successfully',
+            data: {
+                filename: req.file.filename,
+                avatar_url: avatarUrl,
+                mimetype: req.file.mimetype,
+                size: req.file.size
+            }
+        })
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: 'Unable to upload avatar'
+        })
+    }
+}
+
 module.exports = {
     getProfile,
-    updateProfile
+    updateProfile,
+    uploadAvatar
 }

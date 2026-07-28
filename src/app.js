@@ -5,6 +5,7 @@ const morgan = require('morgan')
 const session = require('express-session')
 const SequelizeStore = require('connect-session-sequelize')(session.Store)
 const sequelize = require('./config/database')
+const path = require('path');
 
 const sessionSecret = process.env.SESSION_SECRET
 
@@ -65,4 +66,8 @@ app.use(function (req, res) {
     })
 })
 
+app.use(
+    '/uploads',
+    express.static(path.join(process.cwd(), 'uploads'))
+)
 module.exports = app

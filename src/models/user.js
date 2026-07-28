@@ -9,6 +9,10 @@ const User = sequelize.define(
             autoIncrement: true,
             primaryKey: true
         },
+        avatar_url: {
+            type: DataTypes.STRING(255),
+            allowNull: false
+        },
         full_name: {
             type: DataTypes.STRING(100),
             allowNull: false

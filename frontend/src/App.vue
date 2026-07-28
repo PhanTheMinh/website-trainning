@@ -70,7 +70,8 @@ const showAuthPanel = ref(false)
 const profileForm = ref({
   full_name: '',
   email: '',
-  phone: ''
+  phone: '',
+  address: ''
 })
 const profileLoading = ref(false)
 const profileMessage = ref('')
@@ -110,7 +111,8 @@ function handleAuthenticated(user) {
   profileForm.value = {
     full_name: user.full_name,
     email: user.email,
-    phone: user.phone || ''
+    phone: user.phone || '',
+    address: user.address
   }
   showAuthPanel.value = false
 }
@@ -123,13 +125,15 @@ async function restoreCurrentUser() {
       name: backendUser.full_name,
       email: backendUser.email,
       phone: backendUser.phone,
+      address: backendUser.address,
       membership: backendUser.role
     }
 
     profileForm.value = {
       full_name: backendUser.full_name,
       email: backendUser.email,
-      phone: backendUser.phone || ''
+      phone: backendUser.phone || '',
+      address: backendUser.address,
     }
   }catch (e) {
     currentUser.value = null
@@ -148,7 +152,8 @@ async function saveProfile() {
   try {
     const response = await updateProfile({
       full_name: profileForm.value.full_name,
-      phone: profileForm.value.phone || null
+      phone: profileForm.value.phone || null,
+      address: profileForm.value.address || null,
     })
 
     const backendUser = response.data
@@ -157,6 +162,7 @@ async function saveProfile() {
       name: backendUser.full_name,
       email: backendUser.email,
       phone: backendUser.phone,
+      address: backendUser.address,
       membership: backendUser.role
     }
 
@@ -305,15 +311,15 @@ function logout() {
 
           <form class="profile-form" @submit.prevent="saveProfile">
             <div class="field">
-              <label for="profile-name">Ho ten</label>
+              <label for="profile-name">Họ và tên </label>
               <input id="profile-name" v-model="profileForm.full_name" autocomplete="name" />
             </div>
-<!--            <div class="field">-->
-<!--              <label for="profile-email">Email</label>-->
-<!--              <input id="profile-email" v-model="profileForm.email" autocomplete="email" type="email" />-->
-<!--            </div>-->
             <div class="field">
-              <label for="profile-phone">So dien thoai</label>
+              <label for="profile-address">Địa Chỉ</label>
+              <input id="profile-address" v-model="profileForm.address" autocomplete="address" />
+            </div>
+            <div class="field">
+              <label for="profile-phone">Số Điện Thoại</label>
               <input
                   id="profile-phone"
                   v-model="profileForm.phone"

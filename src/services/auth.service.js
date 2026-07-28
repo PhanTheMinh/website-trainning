@@ -33,6 +33,7 @@ async function register(data) {
         full_name: data.full_name,
         email: data.email,
         phone: data.phone || null,
+        address: data.address || null,
         password: hashPassword(data.password),
         role: 'user',
         status: 'active'
@@ -43,6 +44,7 @@ async function register(data) {
         full_name: user.full_name,
         email: user.email,
         phone: user.phone,
+        address: user.address,
         role: user.role,
         status: user.status,
         created_at: user.created_at
@@ -90,6 +92,7 @@ async function login(data) {
             full_name: user.full_name,
             email: user.email,
             phone: user.phone,
+            address: user.address,
             role: user.role,
             status: user.status
         }

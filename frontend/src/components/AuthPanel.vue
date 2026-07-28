@@ -9,6 +9,7 @@ const form = reactive({
   name: '',
   email: '',
   password: '',
+  address: '',
   sport: 'Gym & Fitness'
 })
 const message = ref('')
@@ -23,7 +24,7 @@ function switchMode(nextMode) {
 
 async function submitAuth() {
 
-  if (!form.email || !form.password || (isRegister.value && !form.name)) {
+  if (!form.email || !form.password || (isRegister.value && !form.name) || !form.address) {
     message.value = 'Vui long dien day du thong tin bat buoc.'
     return
   }
@@ -31,6 +32,7 @@ async function submitAuth() {
     const payload = {
       full_name: form.name,
       email: form.email,
+      address: form.address,
       password: form.password
     }
     try{
@@ -55,6 +57,7 @@ async function submitAuth() {
         name: backendUser.full_name,
         email: backendUser.email,
         phone: backendUser.phone,
+        address: backendUser.address,
         membership: backendUser.role
       }
       emit('authenticated', userForApp)
@@ -67,6 +70,7 @@ async function submitAuth() {
   const user = {
     name: isRegister.value ? form.name : form.email.split('@')[0],
     email: form.email,
+    address: form.address,
     sport: form.sport,
     membership: isRegister.value ? 'Rookie member' : 'Returning member'
   }
@@ -120,7 +124,14 @@ async function submitAuth() {
           type="email"
         />
       </div>
-
+      <div v-if="isRegister" class="field">
+        <label for="auth-address">Address</label>
+        <input
+            id="auth-address"
+            v-model="form.address"
+            autocomplete="address"
+        />
+      </div>
       <div class="field">
         <label for="auth-password">Mat khau</label>
         <input
