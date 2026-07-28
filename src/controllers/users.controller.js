@@ -3,18 +3,17 @@ const userService = require('../services/users.service')
 async function getProfile(req, res) {
     try{
 
-        const userId = req.user.id;
-        console.log("User ID: " , userId);
-        const data_user = await userService.getProfile(userId);
+        const userId = req.user.id
+        const data_user = await userService.getProfile(userId)
 
-        return res.status(200).send({
-            status: 'success',
-            data: data_user,
-
+        return res.status(200).json({
+            success: true,
+            message: 'Profile retrieved successfully',
+            data: data_user
         })
     }catch(error){
         return res.status(error.statusCode || 500).json({
-            status: false,
+            success: false,
             message: error.message || "Internal Server Error",
         })
     }

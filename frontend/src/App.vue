@@ -1,7 +1,8 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed,onMounted, ref } from 'vue'
 import heroImage from './assets/sports-store-hero.png'
 import AuthPanel from './components/AuthPanel.vue'
+import {getProfile, updateProfile } from "./services/authService.js";
 import BackendConnectionTest from './components/BackendConnectionTest.vue'
 
 const categories = [
@@ -67,11 +68,13 @@ const cartItems = ref([])
 const currentUser = ref(null)
 const showAuthPanel = ref(false)
 const profileForm = ref({
-  name: '',
+  full_name: '',
   email: '',
-  sport: '',
-  address: 'Quan 1, TP. Ho Chi Minh'
+  phone: ''
 })
+const profileLoading = ref(false)
+const profileMessage = ref('')
+const profileError = ref('')
 
 const categoryFilters = computed(() => ['Tat ca', ...categories.map((item) => item.name)])
 
@@ -105,20 +108,63 @@ function openAuthPanel() {
 function handleAuthenticated(user) {
   currentUser.value = user
   profileForm.value = {
-    name: user.name,
+    full_name: user.full_name,
     email: user.email,
-    sport: user.sport,
-    address: 'Quan 1, TP. Ho Chi Minh'
+    phone: user.phone || ''
   }
   showAuthPanel.value = false
 }
 
-function saveProfile() {
-  currentUser.value = {
-    ...currentUser.value,
-    name: profileForm.value.name,
-    email: profileForm.value.email,
-    sport: profileForm.value.sport
+async function restoreCurrentUser() {
+  try{
+    const response = await getProfile()
+    const backendUser = response.data
+    currentUser.value = {
+      name: backendUser.full_name,
+      email: backendUser.email,
+      phone: backendUser.phone,
+      membership: backendUser.role
+    }
+
+    profileForm.value = {
+      full_name: backendUser.full_name,
+      email: backendUser.email,
+      phone: backendUser.phone || ''
+    }
+  }catch (e) {
+    currentUser.value = null
+  }
+}
+
+onMounted(() => {
+  restoreCurrentUser()
+})
+
+async function saveProfile() {
+  profileLoading.value = true
+  profileMessage.value = ''
+  profileError.value = ''
+
+  try {
+    const response = await updateProfile({
+      full_name: profileForm.value.full_name,
+      phone: profileForm.value.phone || null
+    })
+
+    const backendUser = response.data
+
+    currentUser.value = {
+      name: backendUser.full_name,
+      email: backendUser.email,
+      phone: backendUser.phone,
+      membership: backendUser.role
+    }
+
+    profileMessage.value = response.message
+  } catch (error) {
+    profileError.value = error.message
+  } finally {
+    profileLoading.value = false
   }
 }
 
@@ -260,26 +306,30 @@ function logout() {
           <form class="profile-form" @submit.prevent="saveProfile">
             <div class="field">
               <label for="profile-name">Ho ten</label>
-              <input id="profile-name" v-model="profileForm.name" autocomplete="name" />
+              <input id="profile-name" v-model="profileForm.full_name" autocomplete="name" />
             </div>
+<!--            <div class="field">-->
+<!--              <label for="profile-email">Email</label>-->
+<!--              <input id="profile-email" v-model="profileForm.email" autocomplete="email" type="email" />-->
+<!--            </div>-->
             <div class="field">
-              <label for="profile-email">Email</label>
-              <input id="profile-email" v-model="profileForm.email" autocomplete="email" type="email" />
+              <label for="profile-phone">So dien thoai</label>
+              <input
+                  id="profile-phone"
+                  v-model="profileForm.phone"
+                  autocomplete="tel"
+              />
             </div>
-            <div class="field">
-              <label for="profile-sport">Mon the thao yeu thich</label>
-              <select id="profile-sport" v-model="profileForm.sport">
-                <option>Gym & Fitness</option>
-                <option>Giay chay bo</option>
-                <option>Bong da</option>
-                <option>Bong ro</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="profile-address">Dia chi giao hang</label>
-              <input id="profile-address" v-model="profileForm.address" autocomplete="street-address" />
-            </div>
-            <button type="submit">Luu profile</button>
+            <button type="submit" :disabled="profileLoading">
+              {{ profileLoading ? 'Dang luu...' : 'Luu profile' }}
+            </button>
+            <p v-if="profileMessage" class="result success">
+              {{ profileMessage }}
+            </p>
+
+            <p v-if="profileError" class="result error">
+              {{ profileError }}
+            </p>
           </form>
         </div>
 

@@ -1,6 +1,29 @@
 const authService = require('../services/auth.service')
 const { registerSchema, loginSchema  } = require('../validators/auth.validator')
 
+function regenerateSession(req) {
+    return new Promise(function (resolve, reject) {
+        req.session.regenerate(function (error) {
+            if (error) {
+                return reject(error)
+            }
+
+            return resolve()
+        })
+    })
+}
+
+function saveSession(req) {
+    return new Promise(function (resolve, reject) {
+        req.session.save(function (error) {
+            if (error) {
+                return reject(error)
+            }
+
+            return resolve()
+        })
+    })
+}
 
 async function register(req, res) {
     try {
@@ -40,12 +63,15 @@ async function login(req, res) {
         }
 
         const result = await authService.login(value)
-            req.session.user = result.user
+        await regenerateSession(req)
+        req.session.user = {
+            id: result.user.id
+        }
+        await saveSession(req)
 
         return res.status(200).json({
             success: true,
             message: 'Login successfully',
-            status: res.statusCode,
             data: result.user
         })
     } catch (error) {
@@ -56,7 +82,39 @@ async function login(req, res) {
     }
 }
 
+async function logout(req, res) {
+    try {
+        await new Promise(function (resolve, reject) {
+            req.session.destroy(function (error) {
+                if (error) {
+                    return reject(error)
+                }
+
+                return resolve()
+            })
+        })
+
+        res.clearCookie('connect.sid', {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            path: '/'
+        })
+
+        return res.status(200).json({
+            success: true,
+            message: 'Logout successfully'
+        })
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: 'Unable to logout'
+        })
+    }
+}
+
 module.exports = {
     register,
-    login
+    login,
+    logout
 }

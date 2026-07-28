@@ -7,7 +7,7 @@ async function request(path, options = {}) {
     headers: {
       'Content-Type': 'application/json',
       ...options.headers
-    },
+    },credentials: "include",
     ...options
   })
 

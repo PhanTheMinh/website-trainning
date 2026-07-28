@@ -1,5 +1,6 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue';
+import {login, register} from '../services/authService.js';
 
 const emit = defineEmits(['authenticated', 'close'])
 
@@ -13,18 +14,56 @@ const form = reactive({
 const message = ref('')
 
 const isRegister = computed(() => mode.value === 'register')
+const isLogin = computed(() => mode.value === 'login')
 
 function switchMode(nextMode) {
   mode.value = nextMode
   message.value = ''
 }
 
-function submitAuth() {
+async function submitAuth() {
+
   if (!form.email || !form.password || (isRegister.value && !form.name)) {
     message.value = 'Vui long dien day du thong tin bat buoc.'
     return
   }
+  if (isRegister.value) {
+    const payload = {
+      full_name: form.name,
+      email: form.email,
+      password: form.password
+    }
+    try{
+      const response = await register(payload)
+      message.value = response.message
+    }catch (e) {
+      message.value = e.message
+    }
+  }
 
+  if (isLogin.value) {
+    const payload = {
+      email: form.email,
+      password: form.password
+    }
+
+    try{
+      const response = await login(payload)
+      message.value = response.message
+      const backendUser = response.data
+      const userForApp = {
+        name: backendUser.full_name,
+        email: backendUser.email,
+        phone: backendUser.phone,
+        membership: backendUser.role
+      }
+      emit('authenticated', userForApp)
+      return
+    }catch (e) {
+      message.value = e.message
+      return
+    }
+  }
   const user = {
     name: isRegister.value ? form.name : form.email.split('@')[0],
     email: form.email,

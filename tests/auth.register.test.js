@@ -3,15 +3,38 @@ const app = require('../src/app')
 const sequelize = require('../src/config/database')
 const { User } = require('../src/models')
 
+const testEmails = [
+    'hai_test@gmail.com',
+    'duplicate@gmail.com',
+    'phone1@gmail.com',
+    'phone2@gmail.com',
+    'nopassword@gmail.com',
+    'shortpass@gmail.com'
+]
+const testPhoneSuffix = Date.now().toString().slice(-8)
+const testPhones = {
+    register: `09${testPhoneSuffix}01`,
+    duplicateEmail: `09${testPhoneSuffix}02`,
+    duplicatePhone: `09${testPhoneSuffix}03`,
+    invalidEmail: `09${testPhoneSuffix}04`,
+    noPassword: `09${testPhoneSuffix}05`
+}
+
 describe('POST /api/auth/register', function () {
     beforeEach(async function () {
         await User.destroy({
-            where: {},
-            truncate: true
+            where: {
+                email: testEmails
+            }
         })
     })
 
     afterAll(async function () {
+        await User.destroy({
+            where: {
+                email: testEmails
+            }
+        })
         await sequelize.close()
     })
 
@@ -21,7 +44,7 @@ describe('POST /api/auth/register', function () {
             .send({
                 full_name: 'Nguyen Duc Hai',
                 email: 'hai_test@gmail.com',
-                phone: '0338529704',
+                phone: testPhones.register,
                 password: '123456'
             })
 
@@ -35,7 +58,7 @@ describe('POST /api/auth/register', function () {
         await User.create({
             full_name: 'Nguyen Duc Hai',
             email: 'duplicate@gmail.com',
-            phone: '0338529701',
+            phone: testPhones.duplicateEmail,
             password: 'hashed_password',
             role: 'user',
             status: 'active'
@@ -44,9 +67,9 @@ describe('POST /api/auth/register', function () {
         const response = await request(app)
             .post('/api/auth/register')
             .send({
-                full_name: 'Nguyen Van B',
-                email: 'duplicate@gmail.com',
-                phone: '0338529702',
+            full_name: 'Nguyen Van B',
+            email: 'duplicate@gmail.com',
+            phone: testPhones.register,
                 password: '123456'
             })
 
@@ -59,7 +82,7 @@ describe('POST /api/auth/register', function () {
         await User.create({
             full_name: 'Nguyen Duc Hai',
             email: 'phone1@gmail.com',
-            phone: '0338529703',
+            phone: testPhones.duplicatePhone,
             password: 'hashed_password',
             role: 'user',
             status: 'active'
@@ -68,9 +91,9 @@ describe('POST /api/auth/register', function () {
         const response = await request(app)
             .post('/api/auth/register')
             .send({
-                full_name: 'Nguyen Van B',
-                email: 'phone2@gmail.com',
-                phone: '0338529703',
+            full_name: 'Nguyen Van B',
+            email: 'phone2@gmail.com',
+            phone: testPhones.duplicatePhone,
                 password: '123456'
             })
 
@@ -83,9 +106,9 @@ describe('POST /api/auth/register', function () {
         const response = await request(app)
             .post('/api/auth/register')
             .send({
-                full_name: 'Nguyen Duc Hai',
-                email: 'invalid-email',
-                phone: '0338529704',
+            full_name: 'Nguyen Duc Hai',
+            email: 'invalid-email',
+            phone: testPhones.invalidEmail,
                 password: '123456'
             })
 
@@ -97,9 +120,9 @@ describe('POST /api/auth/register', function () {
         const response = await request(app)
             .post('/api/auth/register')
             .send({
-                full_name: 'Nguyen Duc Hai',
-                email: 'nopassword@gmail.com',
-                phone: '0338529705'
+            full_name: 'Nguyen Duc Hai',
+            email: 'nopassword@gmail.com',
+            phone: testPhones.noPassword
             })
 
         expect(response.status).toBe(400)

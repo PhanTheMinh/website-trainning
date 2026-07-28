@@ -2,10 +2,11 @@ const userModel = require("../models/user");
 const {where} = require("sequelize");
 
 async function getProfile(userId) {
-    const profile_user = await userModel.findByPk(userId);
+    const profile_user = await userModel.findByPk(userId,
+        {attributes:["id","full_name","phone","email","role","status"]},);
     if (!profile_user) {
         const error = new Error("User not found")
-        error.status = 401
+        error.statusCode = 404
         throw error
     }
 
