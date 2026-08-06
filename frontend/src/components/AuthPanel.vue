@@ -1,21 +1,21 @@
 <script setup>
-import { computed, reactive, ref } from 'vue';
-import {login, register} from '../services/authService.js';
+import { computed, reactive, ref } from 'vue'
+import { login, register } from '../services/authService.js'
 
 const emit = defineEmits(['authenticated', 'close'])
 
 const mode = ref('login')
 const form = reactive({
-  name: '',
+  full_name: '',
   email: '',
+  phone: '',
   password: '',
-  address: '',
-  sport: 'Gym & Fitness'
+  address: ''
 })
 const message = ref('')
+const submitting = ref(false)
 
 const isRegister = computed(() => mode.value === 'register')
-const isLogin = computed(() => mode.value === 'login')
 
 function switchMode(nextMode) {
   mode.value = nextMode
@@ -23,60 +23,40 @@ function switchMode(nextMode) {
 }
 
 async function submitAuth() {
-
-  if (!form.email || !form.password || (isRegister.value && !form.name) || !form.address) {
+  if (!form.email || !form.password || (isRegister.value && !form.full_name)) {
     message.value = 'Vui long dien day du thong tin bat buoc.'
     return
   }
-  if (isRegister.value) {
-    const payload = {
-      full_name: form.name,
-      email: form.email,
-      address: form.address,
-      password: form.password
-    }
-    try{
-      const response = await register(payload)
-      message.value = response.message
-    }catch (e) {
-      message.value = e.message
-    }
-  }
 
-  if (isLogin.value) {
-    const payload = {
-      email: form.email,
-      password: form.password
-    }
-
-    try{
-      const response = await login(payload)
-      message.value = response.message
-      const backendUser = response.data
-      const userForApp = {
-        name: backendUser.full_name,
-        email: backendUser.email,
-        phone: backendUser.phone,
-        address: backendUser.address,
-        membership: backendUser.role
-      }
-      emit('authenticated', userForApp)
-      return
-    }catch (e) {
-      message.value = e.message
-      return
-    }
-  }
-  const user = {
-    name: isRegister.value ? form.name : form.email.split('@')[0],
-    email: form.email,
-    address: form.address,
-    sport: form.sport,
-    membership: isRegister.value ? 'Rookie member' : 'Returning member'
-  }
-
-  emit('authenticated', user)
+  submitting.value = true
   message.value = ''
+
+  try {
+    if (isRegister.value) {
+      const response = await register({
+        full_name: form.full_name,
+        email: form.email,
+        phone: form.phone || null,
+        address: form.address || null,
+        password: form.password
+      })
+
+      message.value = `${response.message}. Ban co the dang nhap ngay bay gio.`
+      mode.value = 'login'
+      return
+    }
+
+    const response = await login({
+      email: form.email,
+      password: form.password
+    })
+
+    emit('authenticated', response.data)
+  } catch (error) {
+    message.value = error.message
+  } finally {
+    submitting.value = false
+  }
 }
 </script>
 
@@ -85,10 +65,7 @@ async function submitAuth() {
     <div class="auth-copy">
       <p class="eyebrow">Tai khoan</p>
       <h2>{{ isRegister ? 'Tao tai khoan moi' : 'Dang nhap thanh vien' }}</h2>
-      <p>
-        Luu thong tin khach hang, theo doi gio hang va chuan bi cho cac API auth cua
-        backend Node.js.
-      </p>
+      <p>Dang ky de luu thong tin khach hang va quan ly ho so tren moi thiet bi.</p>
     </div>
 
     <form class="auth-form" @submit.prevent="submitAuth">
@@ -111,7 +88,13 @@ async function submitAuth() {
 
       <div v-if="isRegister" class="field">
         <label for="auth-name">Ho ten</label>
-        <input id="auth-name" v-model="form.name" autocomplete="name" placeholder="Nguyen Van A" />
+        <input
+          id="auth-name"
+          v-model="form.full_name"
+          autocomplete="name"
+          placeholder="Nguyen Van A"
+          required
+        />
       </div>
 
       <div class="field">
@@ -122,39 +105,50 @@ async function submitAuth() {
           autocomplete="email"
           placeholder="you@example.com"
           type="email"
+          required
         />
       </div>
+
       <div v-if="isRegister" class="field">
-        <label for="auth-address">Address</label>
+        <label for="auth-phone">So dien thoai</label>
         <input
-            id="auth-address"
-            v-model="form.address"
-            autocomplete="address"
+          id="auth-phone"
+          v-model="form.phone"
+          autocomplete="tel"
+          placeholder="0901234567"
         />
       </div>
+
+      <div v-if="isRegister" class="field">
+        <label for="auth-address">Dia chi</label>
+        <input
+          id="auth-address"
+          v-model="form.address"
+          autocomplete="street-address"
+        />
+      </div>
+
       <div class="field">
         <label for="auth-password">Mat khau</label>
         <input
           id="auth-password"
           v-model="form.password"
-          autocomplete="current-password"
+          :autocomplete="isRegister ? 'new-password' : 'current-password'"
+          minlength="6"
           placeholder="Nhap mat khau"
           type="password"
+          required
         />
       </div>
 
-      <div v-if="isRegister" class="field">
-        <label for="auth-sport">Mon the thao yeu thich</label>
-        <select id="auth-sport" v-model="form.sport">
-          <option>Gym & Fitness</option>
-          <option>Giay chay bo</option>
-          <option>Bong da</option>
-          <option>Bong ro</option>
-        </select>
-      </div>
-
-      <button class="submit-auth" type="submit">
-        {{ isRegister ? 'Tao tai khoan' : 'Dang nhap' }}
+      <button class="submit-auth" type="submit" :disabled="submitting">
+        {{
+          submitting
+            ? 'Dang xu ly...'
+            : isRegister
+              ? 'Tao tai khoan'
+              : 'Dang nhap'
+        }}
       </button>
 
       <button class="text-button" type="button" @click="emit('close')">Dong</button>

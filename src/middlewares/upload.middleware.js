@@ -1,11 +1,9 @@
 const fs = require('fs')
-const path = require('path')
 const crypto = require('crypto')
 const multer = require('multer')
+const {avatarsDirectory} = require('../config/uploads')
 
-const uploadDirectory = path.join(process.cwd(), 'uploads', "avatars")
-
-fs.mkdirSync(uploadDirectory, {
+fs.mkdirSync(avatarsDirectory, {
     recursive: true
 })
 
@@ -17,7 +15,7 @@ const allowedMimeTypes = {
 
 const storage = multer.diskStorage({
     destination(req, file, callback) {
-        callback(null, uploadDirectory)
+        callback(null, avatarsDirectory)
     },
 
     filename(req, file, callback) {

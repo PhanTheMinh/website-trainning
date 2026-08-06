@@ -1,6 +1,9 @@
 const { User } = require('../models')
-const { hashPassword } = require('../utils/hash')
-const { generateToken } = require('../utils/jwt')
+const {
+    hashPassword,
+    verifyPassword,
+    needsPasswordRehash
+} = require('../utils/hash')
 
 async function register(data) {
     const existedEmail = await User.findOne({
@@ -36,7 +39,8 @@ async function register(data) {
         address: data.address || null,
         password: hashPassword(data.password),
         role: 'user',
-        status: 'active'
+        status: 'active',
+        avatar_url: null
     })
 
     return {
@@ -47,6 +51,7 @@ async function register(data) {
         address: user.address,
         role: user.role,
         status: user.status,
+        avatar_url: user.avatar_url,
         created_at: user.created_at
     }
 }
@@ -64,15 +69,11 @@ async function login(data) {
         throw error
     }
 
-    if (user.password !== hashPassword(data.password)) {
+    if (!verifyPassword(data.password, user.password)) {
         const error = new Error('Invalid email or password')
         error.statusCode = 400
         throw error
     }
-
-    // console.log('DB password  :', user.password)
-    // console.log('Input hash   :', hashPassword(data.password))
-    // console.log('Equal        :', user.password === hashPassword(data.password))
 
     if (user.status !== 'active') {
         const error = new Error('Account is not active')
@@ -80,11 +81,10 @@ async function login(data) {
         throw error
     }
 
-    // const token = generateToken({
-    //     id: user.id,
-    //     email: user.email,
-    //     role: user.role
-    // })
+    if (needsPasswordRehash(user.password)) {
+        user.password = hashPassword(data.password)
+        await user.save()
+    }
 
     return {
         user: {
@@ -94,10 +94,9 @@ async function login(data) {
             phone: user.phone,
             address: user.address,
             role: user.role,
-            status: user.status
+            status: user.status,
+            avatar_url: user.avatar_url
         }
-        // ,
-        // token
     }
 }
 

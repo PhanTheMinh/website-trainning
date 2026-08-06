@@ -16,6 +16,13 @@ export function updateProfile(payload) {
   return apiClient.put('/api/users/me', payload)
 }
 
-export function logout(payload) {
-  return apiClient.post('/api/auth/logout', payload)
+export function uploadAvatar(file) {
+  const formData = new FormData()
+  formData.append('avatar', file)
+
+  return apiClient.put('/api/users/me/avatar', formData)
+}
+
+export function logout() {
+  return apiClient.post('/api/auth/logout', {})
 }

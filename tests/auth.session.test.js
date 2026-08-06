@@ -1,11 +1,14 @@
 const request = require('supertest')
+const crypto = require('crypto')
 const app = require('../src/app')
 const sequelize = require('../src/config/database')
 const { User } = require('../src/models')
 const { hashPassword } = require('../src/utils/hash')
 
 const testEmail = `session-test-${Date.now()}@example.com`
+const legacyEmail = `legacy-session-test-${Date.now()}@example.com`
 let testUser
+let legacyUser
 
 describe('Session authentication', function () {
     beforeAll(async function () {
@@ -17,12 +20,24 @@ describe('Session authentication', function () {
             role: 'user',
             status: 'active'
         })
+
+        legacyUser = await User.create({
+            full_name: 'Legacy Password User',
+            email: legacyEmail,
+            phone: null,
+            password: crypto
+                .createHash('sha256')
+                .update('123456')
+                .digest('hex'),
+            role: 'user',
+            status: 'active'
+        })
     })
 
     afterAll(async function () {
         await User.destroy({
             where: {
-                id: testUser.id
+                id: [testUser.id, legacyUser.id]
             }
         })
         await sequelize.close()
@@ -79,5 +94,22 @@ describe('Session authentication', function () {
         expect(response.status).toBe(400)
         expect(response.body.success).toBe(false)
         expect(response.headers['set-cookie']).toBeUndefined()
+    })
+
+    it('upgrades a legacy SHA-256 password after a successful login', async function () {
+        const agent = request.agent(app)
+        const response = await agent
+            .post('/api/auth/login')
+            .send({
+                email: legacyEmail,
+                password: '123456'
+            })
+
+        expect(response.status).toBe(200)
+
+        await legacyUser.reload()
+        expect(legacyUser.password).toMatch(/^\$2[aby]\$/)
+
+        await agent.post('/api/auth/logout')
     })
 })

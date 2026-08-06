@@ -6,3 +6,5 @@ npm-debug.log
 .idea
 .vscode
 uploads/avatars/*
+src/uploads/avatars/*
+src/uploads/products/*

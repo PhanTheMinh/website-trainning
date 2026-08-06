@@ -45,12 +45,15 @@ describe('POST /api/auth/register', function () {
                 full_name: 'Nguyen Duc Hai',
                 email: 'hai_test@gmail.com',
                 phone: testPhones.register,
+                address: '123 Nguyen Trai',
                 password: '123456'
             })
 
         expect(response.status).toBe(201)
         expect(response.body.success).toBe(true)
         expect(response.body.data.email).toBe('hai_test@gmail.com')
+        expect(response.body.data.address).toBe('123 Nguyen Trai')
+        expect(response.body.data.avatar_url).toBeNull()
         expect(response.body.data.password).toBeUndefined()
     })
 
