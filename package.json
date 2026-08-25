@@ -6,30 +6,56 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "test": "jest --runInBand"
+    "db:migrate": "sequelize-cli db:migrate",
+    "db:migrate:test": "sequelize-cli db:migrate --env test",
+    "db:seed:demo-products": "node scripts/seed-demo-products.js",
+    "db:enrich:product-galleries": "node scripts/enrich-product-galleries.js",
+    "db:sync:official-variants": "node scripts/sync-official-variant-galleries.js",
+    "db:repair:image-references": "node scripts/repair-product-image-references.js",
+    "db:prune:non-running": "node scripts/prune-non-running-products.js",
+    "pretest": "npm run db:migrate:test",
+    "lint": "eslint src tests migrations scripts",
+    "test": "jest --runInBand",
+    "test:coverage": "jest --runInBand --coverage",
+    "check": "npm run lint && npm test && npm --prefix frontend run lint && npm --prefix frontend test && npm --prefix frontend run build"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "dependencies": {
     "bcrypt": "^6.0.0",
     "connect-session-sequelize": "^8.0.6",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.6.2",
     "express-session": "^1.19.0",
     "helmet": "^8.2.0",
     "joi": "^18.2.3",
-    "jsonwebtoken": "^9.0.3",
     "morgan": "^1.11.0",
+    "multer": "^2.2.0",
     "mysql2": "^3.22.5",
     "sequelize": "^6.37.8"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.9.1",
+    "globals": "^17.11.0",
     "jest": "^30.4.2",
     "nodemon": "^3.1.14",
     "sequelize-cli": "^6.6.5",
     "supertest": "^7.2.2"
+  },
+  "jest": {
+    "setupFiles": [
+      "<rootDir>/tests/setup.js"
+    ],
+    "testMatch": [
+      "<rootDir>/tests/**/*.test.js"
+    ]
   }
 }
