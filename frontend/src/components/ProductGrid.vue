@@ -27,10 +27,13 @@ const emit = defineEmits(['add-to-cart'])
       :key="product.catalogKey || product.id"
       class="product-card"
     >
-      <div
+      <component
+        :is="product.detailRoute ? RouterLink : 'div'"
         class="product-visual"
         :class="{ 'has-image': product.imageUrl }"
         :style="{ '--accent': product.color }"
+        :to="product.detailRoute || undefined"
+        :aria-label="product.detailRoute ? `Xem ${product.name}` : undefined"
       >
         <img
           v-if="product.imageUrl"
@@ -38,9 +41,12 @@ const emit = defineEmits(['add-to-cart'])
           :alt="product.name"
         />
         <span>{{ product.tag }}</span>
-      </div>
+        <small v-if="product.detailRoute" class="product-hover-cue">Xem sản phẩm <b>→</b></small>
+      </component>
       <div class="product-info">
-        <p>{{ product.category }}</p>
+        <p>
+          {{ product.brand ? `${product.brand} · ${product.category}` : product.category }}
+        </p>
         <h3>
           <RouterLink
             v-if="product.detailRoute"
@@ -50,12 +56,25 @@ const emit = defineEmits(['add-to-cart'])
           </RouterLink>
           <template v-else>{{ product.name }}</template>
         </h3>
-        <strong>{{ formatCurrency(product.price) }}</strong>
+        <strong>
+          {{ formatCurrency(product.price) }}
+          <template v-if="product.maxPrice > product.price">
+            – {{ formatCurrency(product.maxPrice) }}
+          </template>
+        </strong>
       </div>
+      <RouterLink
+        v-if="product.requiresSelection"
+        class="product-card-option-link"
+        :to="product.detailRoute"
+      >
+        Chọn tùy chọn
+      </RouterLink>
       <button
+        v-else
         type="button"
         :disabled="product.stock === 0"
-        @click="emit('add-to-cart', product)"
+        @click="emit('add-to-cart', product.cartItem)"
       >
         {{ product.stock === 0 ? 'Đã hết hàng' : 'Thêm vào giỏ' }}
       </button>

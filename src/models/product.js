@@ -25,6 +25,14 @@ const Product = sequelize.define(
             type: DataTypes.STRING(100),
             allowNull: false
         },
+        category_id: {
+            type: DataTypes.BIGINT,
+            allowNull: true
+        },
+        brand: {
+            type: DataTypes.STRING(100),
+            allowNull: true
+        },
         price: {
             type: DataTypes.DECIMAL(12, 2),
             allowNull: false
@@ -47,14 +55,25 @@ const Product = sequelize.define(
             allowNull: true
         },
         status: {
-            type: DataTypes.STRING(20),
+            type: DataTypes.STRING(30),
             allowNull: false,
-            defaultValue: 'active'
+            defaultValue: 'draft'
+        },
+        deleted_at: {
+            type: DataTypes.DATE,
+            allowNull: true
+        },
+        lock_version: {
+            type: DataTypes.INTEGER.UNSIGNED,
+            allowNull: false,
+            defaultValue: 0
         }
     },
     {
         tableName: 'products',
         timestamps: true,
+        paranoid: true,
+        deletedAt: 'deleted_at',
         underscored: true
     }
 )

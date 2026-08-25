@@ -94,7 +94,7 @@ async function logout() {
       <div class="section-heading">
         <p class="eyebrow">Tài khoản</p>
         <h1>Không gian của bạn</h1>
-        <p>Quản lý hồ sơ, ảnh đại diện và hoạt động bán hàng trên SportBase.</p>
+        <p>Quản lý hồ sơ, ảnh đại diện và hoạt động bán hàng trên RunStore.</p>
       </div>
 
       <div v-if="sessionLoading" class="profile-empty">
@@ -182,12 +182,12 @@ async function logout() {
           <div class="seller-card__icon" aria-hidden="true"></div>
           <div class="seller-card__copy">
             <p class="account-card__eyebrow">Quản lý bán hàng</p>
-            <h2 id="seller-card-title">Bán hàng cùng chúng tôi</h2>
-            <p>Đăng sản phẩm của bạn và bắt đầu bán hàng trên hệ thống.</p>
+            <h2 id="seller-card-title">Quản lý sản phẩm</h2>
+            <p>Seller workspace tập trung để đăng mới, cập nhật tồn kho và quản lý sản phẩm đã xóa.</p>
+            <span class="seller-card__meta">PRODUCT CONTROL · RUNSTORE</span>
           </div>
-          <RouterLink class="seller-card__action" :to="{ name: 'product-create' }">
-            <span class="seller-card__plus" aria-hidden="true"></span>
-            Thêm sản phẩm
+          <RouterLink class="seller-card__action" :to="{ name: 'my-products' }">
+            Quản lý sản phẩm
             <span class="seller-card__arrow" aria-hidden="true"></span>
           </RouterLink>
         </section>

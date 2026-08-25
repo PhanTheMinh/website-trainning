@@ -25,7 +25,7 @@ function saveSession(req) {
     })
 }
 
-async function register(req, res) {
+async function register(req, res, next) {
     try {
         const { error, value } = registerSchema.validate(req.body)
 
@@ -44,14 +44,11 @@ async function register(req, res) {
             data: user
         })
     } catch (error) {
-        return res.status(error.statusCode || 500).json({
-            success: false,
-            message: error.message || 'Internal server error'
-        })
+        return next(error)
     }
 }
 
-async function login(req, res) {
+async function login(req, res, next) {
     try {
         const { error, value } = loginSchema.validate(req.body)
 
@@ -75,10 +72,7 @@ async function login(req, res) {
             data: result.user
         })
     } catch (error) {
-        return res.status(error.statusCode || 500).json({
-            success: false,
-            message: error.message || 'Internal server error'
-        })
+        return next(error)
     }
 }
 
@@ -97,7 +91,9 @@ async function logout(req, res) {
         res.clearCookie('connect.sid', {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
+            sameSite: String(
+                process.env.SESSION_COOKIE_SAME_SITE || 'lax'
+            ).toLowerCase(),
             path: '/'
         })
 

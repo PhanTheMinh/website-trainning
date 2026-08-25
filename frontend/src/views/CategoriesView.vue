@@ -8,24 +8,21 @@ import { getProducts } from '../services/productService.js'
 import { mapApiProducts } from '../utils/productCatalog.js'
 
 const emit = defineEmits(['add-to-cart'])
-const rawProducts = ref([])
+const categoryResults = ref({})
 const loading = ref(true)
 const loadError = ref('')
 
 const categoryGroups = computed(() =>
   categories.map((category) => {
-    const matchingProducts = rawProducts.value.filter(
-      (product) => product.category === category.value
-    )
+    const result = categoryResults.value[category.value] || {
+      count: 0,
+      products: []
+    }
 
     return {
       ...category,
-      count: matchingProducts.length,
-      products: sortProducts(
-        mapApiProducts(matchingProducts, {
-          fromCategory: category.slug
-        })
-      )
+      count: result.count,
+      products: result.products
     }
   })
 )
@@ -35,10 +32,22 @@ async function loadProducts() {
   loadError.value = ''
 
   try {
-    const response = await getProducts()
-    rawProducts.value = response.data
+    const responses = await Promise.all(categories.map((category) =>
+      getProducts({ category: category.value, page: 1, limit: 3 })
+    ))
+    categoryResults.value = Object.fromEntries(
+      categories.map((category, index) => [
+        category.value,
+        {
+          count: responses[index].pagination.totalItems,
+          products: sortProducts(mapApiProducts(responses[index].data, {
+            fromCategory: category.slug
+          }))
+        }
+      ])
+    )
   } catch (error) {
-    rawProducts.value = []
+    categoryResults.value = {}
     loadError.value = error.message
   } finally {
     loading.value = false
@@ -127,7 +136,7 @@ onMounted(loadProducts)
           />
         </section>
 
-        <div v-if="!rawProducts.length" class="catalog-empty category-overview-empty">
+        <div v-if="!categoryGroups.some((group) => group.count)" class="catalog-empty category-overview-empty">
           <h3>Cửa hàng chưa có sản phẩm</h3>
           <p>Các danh mục đã sẵn sàng và sẽ cập nhật ngay khi có sản phẩm mới.</p>
           <RouterLink to="/products">Xem tất cả sản phẩm</RouterLink>

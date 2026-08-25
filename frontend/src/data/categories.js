@@ -1,9 +1,13 @@
 import categoryDefinitions from '../../../shared/product-categories.json'
 
 export const categories = Object.freeze(
-  categoryDefinitions.map(({ aliases, ...category }) =>
-    Object.freeze(category)
-  )
+  categoryDefinitions.map((category) => Object.freeze({
+    value: category.value,
+    slug: category.slug,
+    name: category.name,
+    description: category.description,
+    accent: category.accent
+  }))
 )
 
 export function getCategoryBySlug(slug) {

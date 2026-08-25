@@ -14,7 +14,7 @@ async function register(data) {
 
     if (existedEmail) {
         const error = new Error('Email already exists')
-        error.statusCode = 400
+        error.statusCode = 409
         throw error
     }
 
@@ -27,21 +27,37 @@ async function register(data) {
 
         if (existedPhone) {
             const error = new Error('Phone already exists')
-            error.statusCode = 400
+            error.statusCode = 409
             throw error
         }
     }
 
-    const user = await User.create({
-        full_name: data.full_name,
-        email: data.email,
-        phone: data.phone || null,
-        address: data.address || null,
-        password: hashPassword(data.password),
-        role: 'user',
-        status: 'active',
-        avatar_url: null
-    })
+    let user
+
+    try {
+        user = await User.create({
+            full_name: data.full_name,
+            email: data.email,
+            phone: data.phone || null,
+            address: data.address || null,
+            password: await hashPassword(data.password),
+            role: 'user',
+            status: 'active',
+            avatar_url: null
+        })
+    } catch (error) {
+        if (error.name === 'SequelizeUniqueConstraintError') {
+            const conflict = new Error(
+                error.fields?.phone
+                    ? 'Phone already exists'
+                    : 'Email already exists'
+            )
+            conflict.statusCode = 409
+            throw conflict
+        }
+
+        throw error
+    }
 
     return {
         id: user.id,
@@ -65,13 +81,13 @@ async function login(data) {
 
     if (!user) {
         const error = new Error('Invalid email or password')
-        error.statusCode = 400
+        error.statusCode = 401
         throw error
     }
 
-    if (!verifyPassword(data.password, user.password)) {
+    if (!(await verifyPassword(data.password, user.password))) {
         const error = new Error('Invalid email or password')
-        error.statusCode = 400
+        error.statusCode = 401
         throw error
     }
 
@@ -82,7 +98,7 @@ async function login(data) {
     }
 
     if (needsPasswordRehash(user.password)) {
-        user.password = hashPassword(data.password)
+        user.password = await hashPassword(data.password)
         await user.save()
     }
 

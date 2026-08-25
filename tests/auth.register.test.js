@@ -8,6 +8,7 @@ const testEmails = [
     'duplicate@gmail.com',
     'phone1@gmail.com',
     'phone2@gmail.com',
+    'concurrent@gmail.com',
     'nopassword@gmail.com',
     'shortpass@gmail.com'
 ]
@@ -17,7 +18,8 @@ const testPhones = {
     duplicateEmail: `09${testPhoneSuffix}02`,
     duplicatePhone: `09${testPhoneSuffix}03`,
     invalidEmail: `09${testPhoneSuffix}04`,
-    noPassword: `09${testPhoneSuffix}05`
+    noPassword: `09${testPhoneSuffix}05`,
+    concurrent: `09${testPhoneSuffix}06`
 }
 
 describe('POST /api/auth/register', function () {
@@ -76,7 +78,7 @@ describe('POST /api/auth/register', function () {
                 password: '123456'
             })
 
-        expect(response.status).toBe(400)
+        expect(response.status).toBe(409)
         expect(response.body.success).toBe(false)
         expect(response.body.message).toBe('Email already exists')
     })
@@ -100,9 +102,27 @@ describe('POST /api/auth/register', function () {
                 password: '123456'
             })
 
-        expect(response.status).toBe(400)
+        expect(response.status).toBe(409)
         expect(response.body.success).toBe(false)
         expect(response.body.message).toBe('Phone already exists')
+    })
+
+    it('returns a conflict instead of a server error for concurrent duplicates', async function () {
+        const payload = {
+            full_name: 'Concurrent Registration',
+            email: 'concurrent@gmail.com',
+            phone: testPhones.concurrent,
+            password: '123456'
+        }
+        const responses = await Promise.all([
+            request(app).post('/api/auth/register').send(payload),
+            request(app).post('/api/auth/register').send(payload)
+        ])
+
+        expect(responses.map((response) => response.status).sort())
+            .toEqual([201, 409])
+        expect(responses.find((response) => response.status === 409).body.message)
+            .toMatch(/already exists/)
     })
 
     it('should not register with invalid email', async function () {

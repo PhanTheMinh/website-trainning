@@ -1,7 +1,8 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { formatCurrency } from '../data/catalog.js'
+import { getProduct } from '../services/productService.js'
 
 const props = defineProps({
   cartItems: {
@@ -10,7 +11,12 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['clear-cart', 'remove-from-cart'])
+const emit = defineEmits([
+  'clear-cart',
+  'remove-from-cart',
+  'remove-unavailable'
+])
+const availabilityNotice = ref('')
 
 const groupedItems = computed(() => {
   const grouped = new Map()
@@ -37,6 +43,34 @@ const groupedItems = computed(() => {
 const cartTotal = computed(() =>
   props.cartItems.reduce((total, product) => total + product.price, 0)
 )
+
+async function reconcileCartAvailability() {
+  const unavailableKeys = []
+
+  await Promise.all(groupedItems.value.map(async (item) => {
+    try {
+      const response = await getProduct(
+        item.product.product_id || item.product.id
+      )
+      const variant = response.data.variants.find(
+        (candidate) => Number(candidate.id) === Number(item.product.variant_id)
+      )
+
+      if (!variant || variant.stock_quantity < item.quantity) {
+        unavailableKeys.push(item.key)
+      }
+    } catch {
+      unavailableKeys.push(item.key)
+    }
+  }))
+
+  if (unavailableKeys.length) {
+    availabilityNotice.value = `${unavailableKeys.length} sản phẩm đã được bỏ khỏi giỏ vì đã ngưng bán hoặc không còn đủ hàng.`
+    emit('remove-unavailable', unavailableKeys)
+  }
+}
+
+onMounted(reconcileCartAvailability)
 </script>
 
 <template>
@@ -47,6 +81,12 @@ const cartTotal = computed(() =>
         <h1>Sản phẩm đã chọn</h1>
         <p>Kiểm tra các sản phẩm trong giỏ. Chức năng thanh toán chưa được bật.</p>
       </div>
+
+      <p
+        v-if="availabilityNotice"
+        class="account-notice account-notice--warning"
+        role="status"
+      >{{ availabilityNotice }}</p>
 
       <div v-if="groupedItems.length" class="cart-page-layout">
         <div class="cart-list">
@@ -64,6 +104,10 @@ const cartTotal = computed(() =>
             <div>
               <p>{{ item.product.category }}</p>
               <h2>{{ item.product.name }}</h2>
+              <p v-if="item.product.option_values?.length" class="cart-line-options">
+                {{ item.product.option_values.map((option) => `${option.option_name}: ${option.value}`).join(' · ') }}
+              </p>
+              <small>SKU: {{ item.product.sku }}</small>
               <strong>{{ formatCurrency(item.product.price) }}</strong>
             </div>
             <div class="cart-line-actions">

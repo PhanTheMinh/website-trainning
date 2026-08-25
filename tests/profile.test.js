@@ -26,7 +26,7 @@ describe('Profile APIs', function () {
             email: testEmail,
             phone: null,
             address: null,
-            password: hashPassword('123456'),
+            password: await hashPassword('123456'),
             role: 'user',
             status: 'active'
         })
@@ -141,5 +141,35 @@ describe('Profile APIs', function () {
         expect(response.body.success).toBe(false)
 
         await agent.post('/api/auth/logout')
+    })
+
+    it('returns a conflict when another account already uses the phone', async function () {
+        const email = `profile-conflict-${Date.now()}@example.com`
+        const conflictUser = await User.create({
+            full_name: 'Profile Conflict User',
+            email,
+            phone: null,
+            address: null,
+            password: await hashPassword('123456'),
+            role: 'user',
+            status: 'active'
+        })
+        const agent = request.agent(app)
+
+        try {
+            expect((await agent.post('/api/auth/login').send({
+                email,
+                password: '123456'
+            })).status).toBe(200)
+
+            const response = await agent.put('/api/users/me').send({
+                phone: testPhone
+            })
+
+            expect(response.status).toBe(409)
+            expect(response.body.message).toBe('Phone already exists')
+        } finally {
+            await User.destroy({ where: { id: conflictUser.id } })
+        }
     })
 })

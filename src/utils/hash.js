@@ -9,16 +9,16 @@ function legacyHashPassword(password) {
 }
 
 function hashPassword(password) {
-    return bcrypt.hashSync(password, 10)
+    return bcrypt.hash(password, 10)
 }
 
-function verifyPassword(password, storedHash) {
+async function verifyPassword(password, storedHash) {
     if (!storedHash || typeof storedHash !== 'string') {
         return false
     }
 
     if (/^\$2[aby]\$/.test(storedHash)) {
-        return bcrypt.compareSync(password, storedHash)
+        return bcrypt.compare(password, storedHash)
     }
 
     const inputHash = legacyHashPassword(password)

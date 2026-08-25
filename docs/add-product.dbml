@@ -1,6 +1,6 @@
 Project add_product_design {
   database_type: 'MySQL'
-  Note: 'Thiết kế Add Product dựa trên schema thực tế ngày 2026-08-01. Không phải migration và chưa được áp dụng vào database.'
+  Note: 'Schema Add Product và Product Variant đã áp dụng bằng migration 20260811160000. Bảng categories vẫn là đề xuất ngoài phạm vi triển khai này.'
 }
 
 Table users [note: 'ĐÃ XÁC NHẬN TỪ CODE VÀ DATABASE: tài khoản mua/bán dùng chung.'] {
@@ -49,19 +49,19 @@ Table categories [note: 'ĐỀ XUẤT: danh mục chuẩn hóa thay cho danh sá
   }
 }
 
-Table products [note: 'ĐÃ XÁC NHẬN TỪ CODE VÀ DATABASE; category_id là cột đề xuất, các cột còn lại đang tồn tại.'] {
+Table products [note: 'ĐÃ ÁP DỤNG: thông tin chung của sản phẩm; tồn kho chuẩn nằm ở product_variants.stock_quantity.'] {
   id bigint [pk, increment, note: 'ĐÃ XÁC NHẬN TỪ CODE: khóa chính.']
   owner_id bigint [not null, note: 'ĐÃ XÁC NHẬN TỪ CODE: tài khoản tạo và sở hữu sản phẩm.']
-  category_id bigint [not null, note: 'ĐỀ XUẤT: FK danh mục chuẩn; cần backfill trước khi đặt NOT NULL trong migration tương lai.']
   title varchar(180) [not null, note: 'ĐÃ XÁC NHẬN TỪ CODE.']
   description text [not null, note: 'ĐÃ XÁC NHẬN TỪ CODE.']
-  category varchar(100) [not null, note: 'ĐÃ XÁC NHẬN TỪ CODE: cột tương thích tạm thời; category_id sẽ là nguồn chuẩn sau backfill.']
+  category varchar(100) [not null, note: 'ĐÃ XÁC NHẬN TỪ CODE: slug danh mục từ danh sách chuẩn dùng chung.']
+  brand varchar(100) [note: 'ĐÃ ÁP DỤNG: thương hiệu dạng text, có thể null.']
   price decimal(12,2) [not null, note: 'ĐÃ XÁC NHẬN TỪ CODE: giá cơ sở/giá hiển thị; variant có thể ghi đè.']
-  stock int [not null, default: 0, note: 'ĐÃ XÁC NHẬN TỪ CODE: MySQL INT UNSIGNED; đề xuất giữ tạm làm cache tổng, tồn kho chuẩn nằm ở variants.']
+  stock int [not null, default: 0, note: 'LEGACY: giữ để tương thích dữ liệu cũ, code mới không dùng làm nguồn tồn kho.']
   weight_grams int [note: 'ĐÃ XÁC NHẬN TỪ CODE: MySQL INT UNSIGNED; trọng lượng mặc định tính bằng gram.']
   sizes json [note: 'ĐÃ XÁC NHẬN TỪ CODE: cột tương thích tạm thời; tổ hợp chuẩn nằm ở variants.']
   colors json [note: 'ĐÃ XÁC NHẬN TỪ CODE: cột tương thích tạm thời; tổ hợp chuẩn nằm ở variants.']
-  status varchar(20) [not null, default: 'active', note: 'ĐÃ XÁC NHẬN TỪ CODE; CẦN THỐNG NHẤT việc tạo mới là draft hay active.']
+  status varchar(30) [not null, default: 'needs_variant_setup', note: 'ĐÃ ÁP DỤNG: active (đang bán), inactive (ngưng bán) hoặc needs_variant_setup (nội bộ).']
   created_at datetime [not null, default: `CURRENT_TIMESTAMP`, note: 'ĐÃ XÁC NHẬN TỪ CODE.']
   updated_at datetime [not null, default: `CURRENT_TIMESTAMP`, note: 'ĐÃ XÁC NHẬN TỪ CODE.']
 
@@ -69,12 +69,10 @@ Table products [note: 'ĐÃ XÁC NHẬN TỪ CODE VÀ DATABASE; category_id là 
     owner_id [name: 'products_owner_id']
     category [name: 'products_category']
     title [name: 'products_title']
-    category_id [name: 'products_category_id']
-    (owner_id, status) [name: 'products_owner_id_status']
   }
 }
 
-Table product_images [note: 'ĐÃ XÁC NHẬN TỪ CODE VÀ DATABASE: mỗi sản phẩm có nhiều ảnh. sort_order = 0 là ảnh đại diện theo đề xuất.'] {
+Table product_images [note: 'ĐÃ XÁC NHẬN: mỗi sản phẩm có tối đa 12 ảnh JPEG, PNG, WebP hoặc AVIF; mỗi ảnh tối đa 5 MB. sort_order = 0 là ảnh đại diện.'] {
   id bigint [pk, increment, note: 'ĐÃ XÁC NHẬN TỪ CODE: khóa chính.']
   product_id bigint [not null, note: 'ĐÃ XÁC NHẬN TỪ CODE: FK đến products.']
   image_url varchar(255) [not null, note: 'ĐÃ XÁC NHẬN TỪ CODE: đường dẫn tương đối /uploads/products/...']
@@ -83,73 +81,85 @@ Table product_images [note: 'ĐÃ XÁC NHẬN TỪ CODE VÀ DATABASE: mỗi sả
   updated_at datetime [not null, default: `CURRENT_TIMESTAMP`, note: 'ĐÃ XÁC NHẬN TỪ CODE.']
 
   indexes {
-    (product_id, sort_order) [unique, name: 'product_images_product_id_sort_order', note: 'ĐỀ XUẤT đổi index hiện tại thành unique để không trùng vị trí ảnh.']
+    (product_id, sort_order) [name: 'product_images_product_id_sort_order']
   }
 }
 
-Table product_options [note: 'ĐỀ XUẤT: định nghĩa các loại lựa chọn động của sản phẩm, ví dụ Color hoặc Size.'] {
-  id bigint [pk, increment, note: 'ĐỀ XUẤT: khóa chính theo convention BIGINT của project.']
-  product_id bigint [not null, note: 'ĐỀ XUẤT: FK đến products; option luôn thuộc đúng một sản phẩm.']
-  name varchar(50) [not null, note: 'ĐỀ XUẤT: tên loại lựa chọn, ví dụ Color hoặc Size; service cần trim và chuẩn hóa trước khi lưu.']
-  sort_order int [not null, default: 0, note: 'ĐỀ XUẤT: MySQL INT UNSIGNED; thứ tự hiển thị option trên giao diện.']
-  created_at datetime [not null, default: `CURRENT_TIMESTAMP`, note: 'ĐỀ XUẤT: theo convention timestamps của project.']
-  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`, note: 'ĐỀ XUẤT: theo convention timestamps của project.']
+Table product_options [note: 'ĐÃ ÁP DỤNG: định nghĩa các loại lựa chọn động của sản phẩm, ví dụ color hoặc size.'] {
+  id bigint [pk, increment]
+  product_id bigint [not null]
+  code varchar(50) [not null, note: 'Mã chuẩn hóa dùng trong API, ví dụ color hoặc size.']
+  name varchar(80) [not null]
+  sort_order int [not null, default: 0]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`]
 
   indexes {
-    (product_id, name) [unique, name: 'product_options_product_id_name_unique', note: 'ĐỀ XUẤT: một sản phẩm không có hai option trùng tên.']
-    (product_id, sort_order) [name: 'product_options_product_id_sort_order']
+    (product_id, code) [unique, name: 'product_options_product_code_unique']
   }
 }
 
-Table product_option_values [note: 'ĐỀ XUẤT: các giá trị thuộc một product option, ví dụ Yellow/Red thuộc Color hoặc XL/XXL thuộc Size.'] {
-  id bigint [pk, increment, note: 'ĐỀ XUẤT: khóa chính theo convention BIGINT của project.']
-  product_option_id bigint [not null, note: 'ĐỀ XUẤT: FK đến product_options.']
-  value varchar(50) [not null, note: 'ĐỀ XUẤT: giá trị hiển thị; service cần trim và chuẩn hóa để phát hiện trùng.']
-  sort_order int [not null, default: 0, note: 'ĐỀ XUẤT: MySQL INT UNSIGNED; thứ tự hiển thị value trong option.']
-  created_at datetime [not null, default: `CURRENT_TIMESTAMP`, note: 'ĐỀ XUẤT: theo convention timestamps của project.']
-  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`, note: 'ĐỀ XUẤT: theo convention timestamps của project.']
+Table product_option_values [note: 'ĐÃ ÁP DỤNG: các giá trị thuộc một product option.'] {
+  id bigint [pk, increment]
+  product_option_id bigint [not null]
+  value varchar(80) [not null]
+  sort_order int [not null, default: 0]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`]
 
   indexes {
-    (product_option_id, value) [unique, name: 'product_option_values_option_id_value_unique', note: 'ĐỀ XUẤT: một option không có hai value trùng nhau.']
-    (product_option_id, sort_order) [name: 'product_option_values_option_id_sort_order']
+    (product_option_id, value) [unique, name: 'product_option_values_option_value_unique']
   }
 }
 
-Table product_variants [note: 'ĐỀ XUẤT: mỗi hàng hóa/tổ hợp thực tế có SKU và tồn kho riêng; option của variant được liên kết qua product_variant_values thay vì các cột size/color cố định.'] {
-  id bigint [pk, increment, note: 'ĐỀ XUẤT: khóa chính theo convention của project.']
-  product_id bigint [not null, note: 'ĐỀ XUẤT: FK đến products.']
-  sku varchar(64) [not null, note: 'ĐỀ XUẤT: mã kho duy nhất toàn hệ thống.']
-  variant_key varchar(255) [not null, note: 'ĐỀ XUẤT: khóa tổ hợp chuẩn hóa do backend tạo từ các option value, ví dụ optionValueIds đã sắp xếp; không nhận trực tiếp từ frontend.']
-  price decimal(12,2) [note: 'ĐỀ XUẤT: giá ghi đè; null thì dùng products.price.']
-  stock int [not null, default: 0, note: 'ĐỀ XUẤT: MySQL INT UNSIGNED; nguồn tồn kho chuẩn.']
-  weight_grams int [note: 'ĐỀ XUẤT: MySQL INT UNSIGNED; null thì dùng products.weight_grams.']
-  status varchar(20) [not null, default: 'active', note: 'ĐỀ XUẤT: active hoặc inactive.']
-  created_at datetime [not null, default: `CURRENT_TIMESTAMP`, note: 'ĐỀ XUẤT: theo convention timestamps của project.']
-  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`, note: 'ĐỀ XUẤT: theo convention timestamps của project.']
+Table product_variants [note: 'ĐÃ ÁP DỤNG: mỗi hàng hóa/tổ hợp thực tế có SKU và tồn kho riêng.'] {
+  id bigint [pk, increment]
+  product_id bigint [not null]
+  sku varchar(64) [not null, note: 'Unique toàn hệ thống; backend tự sinh nếu client để trống.']
+  variant_key varchar(255) [not null, note: 'Khóa tổ hợp từ option value ids đã sắp xếp; default nếu không có option.']
+  price decimal(12,2) [note: 'Giá ghi đè; null thì dùng products.price.']
+  image_url varchar(255) [note: 'LEGACY/COMPATIBILITY: phản chiếu ảnh variant đầu tiên; thư viện chuẩn nằm ở product_variant_images.']
+  stock_quantity int [not null, default: 0, note: 'MySQL INT UNSIGNED; nguồn tồn kho chuẩn.']
+  status varchar(20) [not null, default: 'active']
+  is_default boolean [not null, default: false]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`]
 
   indexes {
     sku [unique, name: 'product_variants_sku_unique']
-    (product_id, variant_key) [unique, name: 'product_variants_product_id_variant_key_unique']
-    (product_id, status) [name: 'product_variants_product_id_status']
+    (product_id, variant_key) [unique, name: 'product_variants_product_key_unique']
+    (product_id, status) [name: 'product_variants_product_status']
   }
 }
 
-Table product_variant_values [note: 'ĐỀ XUẤT: bảng nối một variant với các option value tạo nên tổ hợp; service phải bảo đảm value và variant thuộc cùng một product, đồng thời mỗi variant chỉ chọn một value từ mỗi option.'] {
-  product_variant_id bigint [not null, note: 'ĐỀ XUẤT: FK đến product_variants.']
-  product_option_value_id bigint [not null, note: 'ĐỀ XUẤT: FK đến product_option_values.']
-  created_at datetime [not null, default: `CURRENT_TIMESTAMP`, note: 'ĐỀ XUẤT: theo convention timestamps của project.']
+Table product_variant_images [note: 'ĐÃ ÁP DỤNG: thư viện ảnh độc lập của từng variant, tối đa 8 ảnh theo validation API.'] {
+  id bigint [pk, increment]
+  product_variant_id bigint [not null]
+  image_url varchar(255) [not null, note: 'Đường dẫn tương đối /uploads/products/...']
+  sort_order int [not null, default: 0, note: 'Ảnh có thứ tự nhỏ nhất là ảnh đại diện variant.']
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    (product_variant_id, sort_order) [name: 'product_variant_images_variant_order']
+  }
+}
+
+Table product_variant_values [note: 'ĐÃ ÁP DỤNG: bảng nối một variant với các option value tạo nên tổ hợp.'] {
+  product_variant_id bigint [not null]
+  product_option_value_id bigint [not null]
 
   indexes {
     (product_variant_id, product_option_value_id) [pk, name: 'product_variant_values_primary']
-    product_option_value_id [name: 'product_variant_values_option_value_id']
+    product_option_value_id [name: 'product_variant_values_option_value']
   }
 }
 
 Ref products_owner_fk: products.owner_id > users.id [delete: cascade, update: cascade]
-Ref products_category_fk: products.category_id > categories.id [delete: restrict, update: cascade]
 Ref product_images_product_fk: product_images.product_id > products.id [delete: cascade, update: cascade]
 Ref product_options_product_fk: product_options.product_id > products.id [delete: cascade, update: cascade]
 Ref product_option_values_option_fk: product_option_values.product_option_id > product_options.id [delete: cascade, update: cascade]
 Ref product_variants_product_fk: product_variants.product_id > products.id [delete: cascade, update: cascade]
+Ref product_variant_images_variant_fk: product_variant_images.product_variant_id > product_variants.id [delete: cascade, update: cascade]
 Ref product_variant_values_variant_fk: product_variant_values.product_variant_id > product_variants.id [delete: cascade, update: cascade]
 Ref product_variant_values_option_value_fk: product_variant_values.product_option_value_id > product_option_values.id [delete: cascade, update: cascade]

@@ -4,6 +4,7 @@ const app = require('../src/app')
 const sequelize = require('../src/config/database')
 const { User } = require('../src/models')
 const { hashPassword } = require('../src/utils/hash')
+const authService = require('../src/services/auth.service')
 
 const testEmail = `session-test-${Date.now()}@example.com`
 const legacyEmail = `legacy-session-test-${Date.now()}@example.com`
@@ -16,7 +17,7 @@ describe('Session authentication', function () {
             full_name: 'Session Test User',
             email: testEmail,
             phone: null,
-            password: hashPassword('123456'),
+            password: await hashPassword('123456'),
             role: 'user',
             status: 'active'
         })
@@ -91,9 +92,31 @@ describe('Session authentication', function () {
                 password: 'wrong-password'
             })
 
-        expect(response.status).toBe(400)
+        expect(response.status).toBe(401)
         expect(response.body.success).toBe(false)
         expect(response.headers['set-cookie']).toBeUndefined()
+    })
+
+    it('invalidates an existing session after the account is deactivated', async function () {
+        const agent = request.agent(app)
+
+        expect((await agent.post('/api/auth/login').send({
+            email: testEmail,
+            password: '123456'
+        })).status).toBe(200)
+
+        await testUser.update({ status: 'inactive' })
+
+        try {
+            const response = await agent.get('/api/users/me')
+
+            expect(response.status).toBe(403)
+            expect(response.body.message).toBe('Account is not active')
+        } finally {
+            await testUser.update({ status: 'active' })
+        }
+
+        expect((await agent.get('/api/users/me')).status).toBe(401)
     })
 
     it('upgrades a legacy SHA-256 password after a successful login', async function () {
@@ -111,5 +134,21 @@ describe('Session authentication', function () {
         expect(legacyUser.password).toMatch(/^\$2[aby]\$/)
 
         await agent.post('/api/auth/logout')
+    })
+
+    it('does not expose unexpected authentication errors', async function () {
+        jest.spyOn(authService, 'login')
+            .mockRejectedValueOnce(new Error('sensitive database detail'))
+
+        const response = await request(app)
+            .post('/api/auth/login')
+            .send({
+                email: testEmail,
+                password: '123456'
+            })
+
+        expect(response.status).toBe(500)
+        expect(response.body.message).toBe('Internal server error')
+        expect(response.body.message).not.toContain('sensitive')
     })
 })

@@ -149,11 +149,13 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
 <template>
   <header ref="headerRoot" class="run-header" @keydown.esc="closeMenus">
     <div class="run-header__inner">
-      <RouterLink class="run-brand" to="/" aria-label="SportBase - Trang chủ" @click="closeMenus">
-        <span class="run-brand__mark" aria-hidden="true">SB</span>
+      <RouterLink class="run-brand" to="/" aria-label="RunStore - Trang chủ" @click="closeMenus">
+        <span class="run-brand__mark" aria-hidden="true">
+          <span>R</span><i></i>
+        </span>
         <span class="run-brand__copy">
-          <strong>SportBase</strong>
-          <small>Running goods</small>
+          <strong>RUN<span>STORE</span></strong>
+          <small>Built to move</small>
         </span>
       </RouterLink>
 
@@ -328,7 +330,7 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
                 <span class="run-account__avatar run-account__avatar--large" aria-hidden="true">
                   <span>TK</span>
                 </span>
-                <strong>Chào mừng đến SportBase</strong>
+                <strong>Chào mừng đến RunStore</strong>
                 <p>Đăng nhập để quản lý hồ sơ và sản phẩm của bạn.</p>
                 <button type="button" @click="openAuthentication">
                   Đăng nhập / Đăng ký
@@ -383,34 +385,45 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
   display: inline-flex;
   gap: 11px;
   min-width: max-content;
+  transition: transform 220ms ease;
+}
+
+.run-brand:hover {
+  transform: translateY(-2px);
 }
 
 .run-brand__mark {
   align-items: center;
-  background: var(--header-green);
-  border-radius: 13px;
-  box-shadow: 0 8px 18px rgba(15, 81, 50, 0.2);
+  background: #071923;
+  border-radius: 14px 6px 14px 6px;
+  box-shadow: 0 9px 22px rgba(7, 25, 35, 0.22);
   color: #fff;
   display: inline-flex;
-  font-size: 0.78rem;
+  font-size: 1.32rem;
   font-weight: 950;
   height: 42px;
   justify-content: center;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.08em;
+  overflow: hidden;
   position: relative;
+  transform: rotate(-3deg);
   width: 42px;
 }
 
-.run-brand__mark::after {
+.run-brand__mark span {
+  position: relative;
+  z-index: 2;
+  transform: skew(-8deg);
+}
+
+.run-brand__mark i {
   background: var(--header-lime);
-  border: 2px solid var(--header-green);
-  border-radius: 50%;
-  content: '';
-  height: 10px;
+  height: 5px;
   position: absolute;
-  right: -2px;
-  top: -2px;
-  width: 10px;
+  right: -3px;
+  top: 11px;
+  transform: rotate(-42deg);
+  width: 30px;
 }
 
 .run-brand__copy {
@@ -420,9 +433,13 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
 
 .run-brand__copy strong {
   color: var(--header-ink);
-  font-size: 1.2rem;
+  font-size: 1.08rem;
   font-weight: 950;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.055em;
+}
+
+.run-brand__copy strong span {
+  color: var(--header-green);
 }
 
 .run-brand__copy small {

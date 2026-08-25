@@ -7,7 +7,7 @@ const {
 } = require('../utils/avatar-file')
 const { updateProfileSchema } = require('../validators/profile.validator')
 
-async function getProfile(req, res) {
+async function getProfile(req, res, next) {
     try {
         const userId = req.user.id
         const user = await userService.getProfile(userId)
@@ -18,14 +18,11 @@ async function getProfile(req, res) {
             data: user
         })
     } catch (error) {
-        return res.status(error.statusCode || 500).json({
-            success: false,
-            message: error.message || 'Internal server error'
-        })
+        return next(error)
     }
 }
 
-async function updateProfile(req, res) {
+async function updateProfile(req, res, next) {
     try {
         const { error, value } = updateProfileSchema.validate(req.body)
 
@@ -44,10 +41,7 @@ async function updateProfile(req, res) {
             data: user
         })
     } catch (error) {
-        return res.status(error.statusCode || 500).json({
-            success: false,
-            message: error.message || 'Internal server error'
-        })
+        return next(error)
     }
 }
 

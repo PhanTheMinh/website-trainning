@@ -24,7 +24,11 @@ export const sortOptions = Object.freeze([
 ])
 
 export function getPriorityScore(product) {
-  const tag = String(product.tag || '').toLowerCase()
+  const tag = String(product.tag || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/gi, 'd')
+    .toLowerCase()
 
   if (tag.includes('giam') || tag.includes('khuyen mai')) {
     return 4

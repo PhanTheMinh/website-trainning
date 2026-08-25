@@ -1,11 +1,14 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from './views/HomeView.vue'
 import ProfileView from './views/ProfileView.vue'
+import MyProductsView from './views/MyProductsView.vue'
 import ProductsView from './views/ProductsView.vue'
 import CategoriesView from './views/CategoriesView.vue'
 import CartView from './views/CartView.vue'
 import AddProductView from './views/AddProductView.vue'
 import ProductDetailView from './views/ProductDetailView.vue'
+import EditProductView from './views/EditProductView.vue'
+import ProductTrashView from './views/ProductTrashView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -19,6 +22,30 @@ const router = createRouter({
       path: '/profile',
       name: 'profile',
       component: ProfileView,
+      meta: {
+        requiresAuth: true
+      }
+    },
+    {
+      path: '/me/products',
+      name: 'my-products',
+      component: MyProductsView,
+      meta: {
+        requiresAuth: true
+      }
+    },
+    {
+      path: '/me/products/trash',
+      name: 'product-trash',
+      component: ProductTrashView,
+      meta: {
+        requiresAuth: true
+      }
+    },
+    {
+      path: '/me/products/:id/edit',
+      name: 'product-edit',
+      component: EditProductView,
       meta: {
         requiresAuth: true
       }
@@ -61,12 +88,23 @@ const router = createRouter({
       redirect: '/'
     }
   ],
-  scrollBehavior(to) {
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) {
+      return savedPosition
+    }
+
     if (to.hash) {
       return {
         el: to.hash,
         behavior: 'smooth'
       }
+    }
+
+    if (
+      to.name === from.name &&
+      ['my-products', 'product-trash'].includes(to.name)
+    ) {
+      return false
     }
 
     return {

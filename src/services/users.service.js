@@ -50,7 +50,7 @@ async function updateProfile(userId, profile) {
 
         if (existedPhone) {
             const error = new Error('Phone already exists')
-            error.statusCode = 400
+            error.statusCode = 409
             throw error
         }
     }
@@ -67,7 +67,17 @@ async function updateProfile(userId, profile) {
         user.address = profile.address || null
     }
 
-    await user.save()
+    try {
+        await user.save()
+    } catch (error) {
+        if (error.name === 'SequelizeUniqueConstraintError') {
+            const conflict = new Error('Phone already exists')
+            conflict.statusCode = 409
+            throw conflict
+        }
+
+        throw error
+    }
 
     return User.findByPk(userId, {
         attributes: publicUserAttributes
