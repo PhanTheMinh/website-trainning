@@ -3,15 +3,40 @@ const app = require('../src/app')
 const sequelize = require('../src/config/database')
 const { User } = require('../src/models')
 
+const testEmails = [
+    'hai_test@gmail.com',
+    'duplicate@gmail.com',
+    'phone1@gmail.com',
+    'phone2@gmail.com',
+    'concurrent@gmail.com',
+    'nopassword@gmail.com',
+    'shortpass@gmail.com'
+]
+const testPhoneSuffix = Date.now().toString().slice(-8)
+const testPhones = {
+    register: `09${testPhoneSuffix}01`,
+    duplicateEmail: `09${testPhoneSuffix}02`,
+    duplicatePhone: `09${testPhoneSuffix}03`,
+    invalidEmail: `09${testPhoneSuffix}04`,
+    noPassword: `09${testPhoneSuffix}05`,
+    concurrent: `09${testPhoneSuffix}06`
+}
+
 describe('POST /api/auth/register', function () {
     beforeEach(async function () {
         await User.destroy({
-            where: {},
-            truncate: true
+            where: {
+                email: testEmails
+            }
         })
     })
 
     afterAll(async function () {
+        await User.destroy({
+            where: {
+                email: testEmails
+            }
+        })
         await sequelize.close()
     })
 
@@ -21,13 +46,16 @@ describe('POST /api/auth/register', function () {
             .send({
                 full_name: 'Nguyen Duc Hai',
                 email: 'hai_test@gmail.com',
-                phone: '0338529704',
+                phone: testPhones.register,
+                address: '123 Nguyen Trai',
                 password: '123456'
             })
 
         expect(response.status).toBe(201)
         expect(response.body.success).toBe(true)
         expect(response.body.data.email).toBe('hai_test@gmail.com')
+        expect(response.body.data.address).toBe('123 Nguyen Trai')
+        expect(response.body.data.avatar_url).toBeNull()
         expect(response.body.data.password).toBeUndefined()
     })
 
@@ -35,7 +63,7 @@ describe('POST /api/auth/register', function () {
         await User.create({
             full_name: 'Nguyen Duc Hai',
             email: 'duplicate@gmail.com',
-            phone: '0338529701',
+            phone: testPhones.duplicateEmail,
             password: 'hashed_password',
             role: 'user',
             status: 'active'
@@ -44,13 +72,13 @@ describe('POST /api/auth/register', function () {
         const response = await request(app)
             .post('/api/auth/register')
             .send({
-                full_name: 'Nguyen Van B',
-                email: 'duplicate@gmail.com',
-                phone: '0338529702',
+            full_name: 'Nguyen Van B',
+            email: 'duplicate@gmail.com',
+            phone: testPhones.register,
                 password: '123456'
             })
 
-        expect(response.status).toBe(400)
+        expect(response.status).toBe(409)
         expect(response.body.success).toBe(false)
         expect(response.body.message).toBe('Email already exists')
     })
@@ -59,7 +87,7 @@ describe('POST /api/auth/register', function () {
         await User.create({
             full_name: 'Nguyen Duc Hai',
             email: 'phone1@gmail.com',
-            phone: '0338529703',
+            phone: testPhones.duplicatePhone,
             password: 'hashed_password',
             role: 'user',
             status: 'active'
@@ -68,24 +96,42 @@ describe('POST /api/auth/register', function () {
         const response = await request(app)
             .post('/api/auth/register')
             .send({
-                full_name: 'Nguyen Van B',
-                email: 'phone2@gmail.com',
-                phone: '0338529703',
+            full_name: 'Nguyen Van B',
+            email: 'phone2@gmail.com',
+            phone: testPhones.duplicatePhone,
                 password: '123456'
             })
 
-        expect(response.status).toBe(400)
+        expect(response.status).toBe(409)
         expect(response.body.success).toBe(false)
         expect(response.body.message).toBe('Phone already exists')
+    })
+
+    it('returns a conflict instead of a server error for concurrent duplicates', async function () {
+        const payload = {
+            full_name: 'Concurrent Registration',
+            email: 'concurrent@gmail.com',
+            phone: testPhones.concurrent,
+            password: '123456'
+        }
+        const responses = await Promise.all([
+            request(app).post('/api/auth/register').send(payload),
+            request(app).post('/api/auth/register').send(payload)
+        ])
+
+        expect(responses.map((response) => response.status).sort())
+            .toEqual([201, 409])
+        expect(responses.find((response) => response.status === 409).body.message)
+            .toMatch(/already exists/)
     })
 
     it('should not register with invalid email', async function () {
         const response = await request(app)
             .post('/api/auth/register')
             .send({
-                full_name: 'Nguyen Duc Hai',
-                email: 'invalid-email',
-                phone: '0338529704',
+            full_name: 'Nguyen Duc Hai',
+            email: 'invalid-email',
+            phone: testPhones.invalidEmail,
                 password: '123456'
             })
 
@@ -97,9 +143,9 @@ describe('POST /api/auth/register', function () {
         const response = await request(app)
             .post('/api/auth/register')
             .send({
-                full_name: 'Nguyen Duc Hai',
-                email: 'nopassword@gmail.com',
-                phone: '0338529705'
+            full_name: 'Nguyen Duc Hai',
+            email: 'nopassword@gmail.com',
+            phone: testPhones.noPassword
             })
 
         expect(response.status).toBe(400)

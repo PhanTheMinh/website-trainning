@@ -1,51 +1,117 @@
 const userService = require('../services/users.service')
+const { avatarsUrlPrefix } = require('../config/uploads')
+const {
+    removeFile,
+    removeAvatarByUrl,
+    isValidImageFile
+} = require('../utils/avatar-file')
+const { updateProfileSchema } = require('../validators/profile.validator')
 
-async function getProfile(req, res) {
-    try{
+async function getProfile(req, res, next) {
+    try {
+        const userId = req.user.id
+        const user = await userService.getProfile(userId)
 
-        const userId = req.user.id;
-        console.log("User ID: " , userId);
-        const data_user = await userService.getProfile(userId);
-
-        return res.status(200).send({
-            status: 'success',
-            data: data_user,
-
+        return res.status(200).json({
+            success: true,
+            message: 'Profile retrieved successfully',
+            data: user
         })
-    }catch(error){
-        return res.status(error.statusCode || 500).json({
-            status: false,
-            message: error.message || "Internal Server Error",
-        })
+    } catch (error) {
+        return next(error)
     }
 }
 
-async function updateProfile(req, res) {
-    try{
-        const userId = req.user.id;
-        const {full_name, phone } = req.body;
-        if(!userId) {
-            return res.status(401).send({
-                status: 'error',
-                message: "User not found",
+async function updateProfile(req, res, next) {
+    try {
+        const { error, value } = updateProfileSchema.validate(req.body)
+
+        if (error) {
+            return res.status(400).json({
+                success: false,
+                message: error.details[0].message
             })
         }
-        const data_user_update = await userService.updateProfile(userId, req.body)
-        console.log(data_user_update)
-        return res.status(200).send({
-            status: res.statusCode,
+
+        const user = await userService.updateProfile(req.user.id, value)
+
+        return res.status(200).json({
+            success: true,
             message: 'Profile updated successfully',
-            data: data_user_update
+            data: user
         })
-    }catch(error){
-        return res.status(error.statusCode || 500).json({
-            status: false,
-            message:error.message || "Internal Server Error",
+    } catch (error) {
+        return next(error)
+    }
+}
+
+async function uploadAvatar(req, res, next) {
+    let databaseUpdated = false
+
+    try {
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                message: 'Avatar file is required'
+            })
+        }
+
+        const validImage = await isValidImageFile(
+            req.file.path,
+            req.file.mimetype
+        )
+
+        if (!validImage) {
+            await removeFile(req.file.path)
+
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid image content'
+            })
+        }
+
+        const avatarUrl =
+            `${avatarsUrlPrefix}/${req.file.filename}`
+
+        const result = await userService.updateAvatar(
+            req.user.id,
+            avatarUrl
+        )
+
+        databaseUpdated = true
+
+        try {
+            await removeAvatarByUrl(result.oldAvatarUrl)
+        } catch (deleteError) {
+            console.error(
+                'Unable to remove old avatar:',
+                deleteError.message
+            )
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: 'Avatar updated successfully',
+            data: result.user
         })
+    } catch (error) {
+        if (!databaseUpdated && req.file?.path) {
+            try {
+                await removeFile(req.file.path)
+            } catch (cleanupError) {
+                console.error(
+                    'Unable to clean new avatar:',
+                    cleanupError.message
+                )
+            }
+        }
+
+        return next(error)
     }
 }
 
 module.exports = {
     getProfile,
-    updateProfile
+    updateProfile,
+    uploadAvatar
 }
