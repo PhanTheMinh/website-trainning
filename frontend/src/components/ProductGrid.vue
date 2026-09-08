@@ -40,8 +40,7 @@ const emit = defineEmits(['add-to-cart'])
           :src="product.imageUrl"
           :alt="product.name"
         />
-        <span>{{ product.tag }}</span>
-        <small v-if="product.detailRoute" class="product-hover-cue">Xem sản phẩm <b>→</b></small>
+        <span v-if="product.tag">{{ product.tag }}</span>
       </component>
       <div class="product-info">
         <p>
@@ -56,6 +55,11 @@ const emit = defineEmits(['add-to-cart'])
           </RouterLink>
           <template v-else>{{ product.name }}</template>
         </h3>
+        <RouterLink
+          v-if="product.shopRoute"
+          class="product-card-shop"
+          :to="product.shopRoute"
+        >{{ product.shop.name }}</RouterLink>
         <strong>
           {{ formatCurrency(product.price) }}
           <template v-if="product.maxPrice > product.price">
@@ -76,7 +80,7 @@ const emit = defineEmits(['add-to-cart'])
         :disabled="product.stock === 0"
         @click="emit('add-to-cart', product.cartItem)"
       >
-        {{ product.stock === 0 ? 'Đã hết hàng' : 'Thêm vào giỏ' }}
+        {{ product.stock === 0 ? 'Hết hàng' : 'Thêm vào giỏ' }}
       </button>
     </article>
   </div>

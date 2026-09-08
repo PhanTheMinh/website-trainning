@@ -1,4 +1,5 @@
 const User = require('./user')
+const Shop = require('./shop')
 const Category = require('./category')
 const Product = require('./product')
 const ProductImage = require('./product-image')
@@ -16,6 +17,26 @@ User.hasMany(Product, {
 Product.belongsTo(User, {
     as: 'owner',
     foreignKey: 'owner_id'
+})
+
+User.hasOne(Shop, {
+    as: 'shop',
+    foreignKey: 'owner_user_id'
+})
+
+Shop.belongsTo(User, {
+    as: 'owner',
+    foreignKey: 'owner_user_id'
+})
+
+Shop.hasMany(Product, {
+    as: 'products',
+    foreignKey: 'shop_id'
+})
+
+Product.belongsTo(Shop, {
+    as: 'shop',
+    foreignKey: 'shop_id'
 })
 
 Category.hasMany(Product, {
@@ -96,6 +117,7 @@ ProductOptionValue.belongsToMany(ProductVariant, {
 
 module.exports = {
     User,
+    Shop,
     Category,
     Product,
     ProductImage,

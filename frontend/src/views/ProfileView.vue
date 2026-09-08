@@ -91,12 +91,6 @@ async function logout() {
     <section class="section profile-section">
       <RouterLink class="profile-back" to="/">← Quay lại trang chủ</RouterLink>
 
-      <div class="section-heading">
-        <p class="eyebrow">Tài khoản</p>
-        <h1>Không gian của bạn</h1>
-        <p>Quản lý hồ sơ, ảnh đại diện và hoạt động bán hàng trên RunStore.</p>
-      </div>
-
       <div v-if="sessionLoading" class="profile-empty">
         <h3>Đang tải hồ sơ...</h3>
       </div>
@@ -181,15 +175,18 @@ async function logout() {
         <section class="seller-card" aria-labelledby="seller-card-title">
           <div class="seller-card__icon" aria-hidden="true"></div>
           <div class="seller-card__copy">
-            <p class="account-card__eyebrow">Quản lý bán hàng</p>
-            <h2 id="seller-card-title">Quản lý sản phẩm</h2>
-            <p>Seller workspace tập trung để đăng mới, cập nhật tồn kho và quản lý sản phẩm đã xóa.</p>
-            <span class="seller-card__meta">PRODUCT CONTROL · RUNSTORE</span>
+            <h2 id="seller-card-title">Bán hàng</h2>
+            <p>Quản lý shop và sản phẩm.</p>
           </div>
-          <RouterLink class="seller-card__action" :to="{ name: 'my-products' }">
-            Quản lý sản phẩm
-            <span class="seller-card__arrow" aria-hidden="true"></span>
-          </RouterLink>
+          <div class="seller-card__actions">
+            <RouterLink class="seller-card__action" :to="{ name: 'my-shop' }">
+              Quản lý shop
+            </RouterLink>
+            <RouterLink class="seller-card__action seller-card__action--quiet" :to="{ name: 'my-products' }">
+              Sản phẩm
+              <span class="seller-card__arrow" aria-hidden="true"></span>
+            </RouterLink>
+          </div>
         </section>
       </div>
 

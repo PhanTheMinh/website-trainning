@@ -3,6 +3,7 @@ const { Op } = require('sequelize')
 const {
     bulkUpdatableProductStatuses
 } = require('../config/product-statuses')
+const STOREFRONT_ERROR = require('../config/storefront-error-codes')
 const {
     Category,
     Product,
@@ -12,14 +13,30 @@ const {
     ProductVariant,
     ProductVariantImage,
     ProductVariantValue,
+    Shop,
     User
 } = require('../models')
+const shopService = require('./shops.service')
 
 const productInclude = [
     {
         model: User,
         as: 'owner',
         attributes: ['id', 'full_name', 'avatar_url']
+    },
+    {
+        model: Shop,
+        as: 'shop',
+        attributes: [
+            'id',
+            'name',
+            'slug',
+            'logo_url',
+            'cover_url',
+            'description',
+            'status',
+            'created_at'
+        ]
     },
     {
         model: ProductImage,
@@ -64,9 +81,74 @@ const productInclude = [
     }
 ]
 
-function createClientError(message, statusCode = 400) {
+const storefrontOwnerInclude = {
+    model: User,
+    as: 'owner',
+    attributes: ['id', 'full_name', 'avatar_url'],
+    where: {
+        status: 'active'
+    },
+    required: true
+}
+
+const storefrontShopInclude = {
+    model: Shop,
+    as: 'shop',
+    attributes: [
+        'id',
+        'name',
+        'slug',
+        'logo_url',
+        'cover_url',
+        'description',
+        'status',
+        'created_at'
+    ],
+    where: {
+        status: {
+            [Op.in]: ['active', 'closed']
+        },
+        owner_user_id: {
+            [Op.col]: 'Product.owner_id'
+        }
+    },
+    required: true
+}
+
+const storefrontProductInclude = [
+    storefrontOwnerInclude,
+    storefrontShopInclude,
+    ...productInclude.slice(2)
+]
+
+const activeStorefrontFilterInclude = [
+    {
+        model: User,
+        as: 'owner',
+        attributes: [],
+        where: {
+            status: 'active'
+        },
+        required: true
+    },
+    {
+        model: Shop,
+        as: 'shop',
+        attributes: [],
+        where: {
+            status: 'active',
+            owner_user_id: {
+                [Op.col]: 'Product.owner_id'
+            }
+        },
+        required: true
+    }
+]
+
+function createClientError(message, statusCode = 400, publicCode = null) {
     const error = new Error(message)
     error.statusCode = statusCode
+    error.publicCode = publicCode
     return error
 }
 
@@ -134,6 +216,41 @@ const primaryImageExpression = sequelize.literal(
     'LIMIT 1' +
     '))'
 )
+
+function effectivePriceFilter(filters) {
+    const variantConditions = []
+    const productConditions = []
+
+    if (filters.minPrice !== undefined) {
+        const minimum = sequelize.escape(Number(filters.minPrice))
+        variantConditions.push(
+            `COALESCE(product_variant.price, \`Product\`.price) >= ${minimum}`
+        )
+        productConditions.push(`\`Product\`.price >= ${minimum}`)
+    }
+
+    if (filters.maxPrice !== undefined) {
+        const maximum = sequelize.escape(Number(filters.maxPrice))
+        variantConditions.push(
+            `COALESCE(product_variant.price, \`Product\`.price) <= ${maximum}`
+        )
+        productConditions.push(`\`Product\`.price <= ${maximum}`)
+    }
+
+    if (!variantConditions.length) return null
+
+    const activeVariants =
+        'SELECT 1 FROM product_variants AS product_variant ' +
+        'WHERE product_variant.product_id = `Product`.id ' +
+        "AND product_variant.status = 'active'"
+
+    return sequelize.literal(
+        '(EXISTS (' + activeVariants + ' AND ' +
+        variantConditions.join(' AND ') + ') OR (' +
+        'NOT EXISTS (' + activeVariants + ') AND ' +
+        productConditions.join(' AND ') + '))'
+    )
+}
 
 function buildOwnProductsOrder(sort) {
     const stableNameOrder = [
@@ -594,6 +711,9 @@ function serializeProduct(product, { storefront = false } = {}) {
     const activeVariants = variants.filter(
         (variant) => variant.status === 'active'
     )
+    const productIsForSale = value.status === 'active' && (
+        !storefront || value.shop?.status === 'active'
+    )
     const prices = activeVariants.map((variant) => variant.effective_price)
     const totalStock = activeVariants.reduce(
         (total, variant) => total + variant.stock_quantity,
@@ -623,14 +743,29 @@ function serializeProduct(product, { storefront = false } = {}) {
         return true
     })
 
+    const shop = value.shop
+        ? {
+            id: Number(value.shop.id),
+            name: value.shop.name,
+            slug: value.shop.slug,
+            identifier: `${value.shop.id}-${value.shop.slug}`,
+            logo_url: value.shop.logo_url || null,
+            cover_url: value.shop.cover_url || null,
+            description: value.shop.description || null,
+            status: value.shop.status,
+            joined_at: value.shop.created_at || value.shop.createdAt
+        }
+        : null
+
     return {
         ...value,
+        shop,
         created_at: value.created_at || value.createdAt,
         updated_at: value.updated_at || value.updatedAt,
         deleted_at: value.deleted_at || value.deletedAt || null,
         price: Number(value.price),
         stock: totalStock,
-        available: totalStock > 0,
+        available: productIsForSale && totalStock > 0,
         min_price: prices.length ? Math.min(...prices) : Number(value.price),
         max_price: prices.length ? Math.max(...prices) : Number(value.price),
         sizes: options.find((option) => option.code === 'size')
@@ -640,7 +775,9 @@ function serializeProduct(product, { storefront = false } = {}) {
         images: productImages,
         gallery_images: galleryImages,
         options,
-        variants: storefront ? activeVariants : variants
+        variants: storefront
+            ? (productIsForSale ? activeVariants : [])
+            : variants
     }
 }
 
@@ -656,11 +793,79 @@ async function findActiveProduct(productId, transaction) {
     })
 }
 
-async function getProductById(productId) {
-    const product = await findActiveProduct(productId)
+async function getStorefrontBlockReason(productId) {
+    const product = await Product.findOne({
+        where: {
+            id: productId,
+            status: {
+                [Op.in]: ['active', 'unactive']
+            }
+        },
+        attributes: ['id'],
+        include: [{
+            model: User,
+            as: 'owner',
+            attributes: ['status'],
+            required: false
+        }, {
+            model: Shop,
+            as: 'shop',
+            attributes: ['status'],
+            required: false,
+            paranoid: false
+        }]
+    })
 
     if (!product) {
-        throw createClientError('Product not found', 404)
+        return {
+            message: 'Product not found',
+            statusCode: 404,
+            publicCode: STOREFRONT_ERROR.PRODUCT_NOT_FOUND
+        }
+    }
+
+    if (product.owner?.status !== 'active') {
+        return {
+            message: 'Product owner is not available',
+            statusCode: 404,
+            publicCode: STOREFRONT_ERROR.PRODUCT_OWNER_UNAVAILABLE
+        }
+    }
+
+    if (product.shop?.status === 'closed') {
+        return {
+            message: 'Shop is temporarily closed',
+            statusCode: 409,
+            publicCode: STOREFRONT_ERROR.SHOP_CLOSED
+        }
+    }
+
+    return {
+        message: 'Product shop is not available',
+        statusCode: 404,
+        publicCode: STOREFRONT_ERROR.SHOP_UNAVAILABLE
+    }
+}
+
+async function getProductById(productId) {
+    const id = normalizeId(productId, 'product id')
+    const product = await Product.findOne({
+        where: {
+            id,
+            status: {
+                [Op.in]: ['active', 'unactive']
+            }
+        },
+        include: storefrontProductInclude
+    })
+
+    if (!product) {
+        const reason = await getStorefrontBlockReason(id)
+        throw createClientError(
+            reason.message,
+            reason.statusCode,
+            reason.publicCode
+        )
     }
 
     return serializeProduct(product, { storefront: true })
@@ -671,6 +876,10 @@ async function listProducts(filters = {}) {
     const limit = filters.limit || 12
     const where = {
         status: 'active'
+    }
+
+    if (filters.shopId) {
+        where.shop_id = normalizeId(filters.shopId, 'shop id')
     }
 
     if (filters.category) {
@@ -704,22 +913,9 @@ async function listProducts(filters = {}) {
         where[Op.and] = [...(where[Op.and] || []), searchCondition]
     }
 
-    const priceConditions = []
-
-    if (filters.minPrice !== undefined) {
-        priceConditions.push(sequelize.where(maximumPriceExpression, {
-            [Op.gte]: filters.minPrice
-        }))
-    }
-
-    if (filters.maxPrice !== undefined) {
-        priceConditions.push(sequelize.where(minimumPriceExpression, {
-            [Op.lte]: filters.maxPrice
-        }))
-    }
-
-    if (priceConditions.length) {
-        where[Op.and] = [...(where[Op.and] || []), ...priceConditions]
+    const priceCondition = effectivePriceFilter(filters)
+    if (priceCondition) {
+        where[Op.and] = [...(where[Op.and] || []), priceCondition]
     }
 
     const stableNameOrder = [['title', 'ASC'], ['id', 'ASC']]
@@ -736,32 +932,40 @@ async function listProducts(filters = {}) {
         order = [['created_at', 'DESC'], ['id', 'DESC']]
     }
 
-    const facetWhere = { status: 'active' }
+    const facetWhere = {
+        status: 'active',
+        ...(filters.shopId ? { shop_id: where.shop_id } : {})
+    }
     const [totalItems, products, categoryFacets, brandFacets] = await Promise.all([
-        Product.count({ where }),
+        Product.count({
+            where,
+            include: activeStorefrontFilterInclude
+        }),
         Product.findAll({
             where,
-            include: productInclude,
+            include: storefrontProductInclude,
             order,
             limit,
             offset: (page - 1) * limit
         }),
         Product.findAll({
             where: facetWhere,
+            include: activeStorefrontFilterInclude,
             attributes: [
                 'category',
-                [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+                [sequelize.fn('COUNT', sequelize.col('Product.id')), 'count']
             ],
-            group: ['category'],
+            group: ['Product.category'],
             raw: true
         }),
         Product.findAll({
             where: facetWhere,
+            include: activeStorefrontFilterInclude,
             attributes: [
                 'brand',
-                [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+                [sequelize.fn('COUNT', sequelize.col('Product.id')), 'count']
             ],
-            group: ['brand'],
+            group: ['Product.brand'],
             raw: true
         })
     ])
@@ -829,23 +1033,8 @@ async function listOwnProducts(ownerId, filters) {
         where.status = filters.status
     }
 
-    const priceConditions = []
-
-    if (filters.minPrice !== undefined) {
-        priceConditions.push(sequelize.where(maximumPriceExpression, {
-            [Op.gte]: filters.minPrice
-        }))
-    }
-
-    if (filters.maxPrice !== undefined) {
-        priceConditions.push(sequelize.where(minimumPriceExpression, {
-            [Op.lte]: filters.maxPrice
-        }))
-    }
-
-    if (priceConditions.length) {
-        where[Op.and] = priceConditions
-    }
+    const priceCondition = effectivePriceFilter(filters)
+    if (priceCondition) where[Op.and] = [priceCondition]
 
     const result = await Product.findAndCountAll({
         where,
@@ -1536,9 +1725,15 @@ async function createProduct(
                     throw createClientError('Category not found', 400)
                 }
 
+                const shop = await shopService.ensureShopForOwner(
+                    ownerId,
+                    transaction
+                )
+
                 const product = await Product.create(
                     {
                         owner_id: ownerId,
+                        shop_id: shop.id,
                         title: productData.title,
                         description: productData.description,
                         category: category.slug,
@@ -1651,6 +1846,136 @@ async function updateVariantStock(
     })
 }
 
+async function validatePurchaseItems(items, existingTransaction = null) {
+    const aggregatedItems = new Map()
+
+    for (const item of items) {
+        const productId = normalizeId(item.product_id, 'product id')
+        const variantId = normalizeId(item.variant_id, 'variant id')
+        const key = `${productId}:${variantId}`
+        const current = aggregatedItems.get(key)
+
+        aggregatedItems.set(key, {
+            product_id: productId,
+            variant_id: variantId,
+            quantity: Number(item.quantity) + (current?.quantity || 0)
+        })
+    }
+
+    const orderedItems = [...aggregatedItems.values()].sort(
+        (left, right) => left.product_id - right.product_id ||
+            left.variant_id - right.variant_id
+    )
+
+    const validateInTransaction = async (transaction) => {
+        const validatedItems = []
+
+        for (const item of orderedItems) {
+            const product = await Product.findByPk(item.product_id, {
+                transaction,
+                lock: transaction.LOCK.UPDATE
+            })
+
+            if (!product || product.status !== 'active') {
+                throw createClientError(
+                    'Product is not available for sale',
+                    409,
+                    STOREFRONT_ERROR.PRODUCT_STOPPED
+                )
+            }
+
+            const activeOwner = await User.findOne({
+                where: {
+                    id: product.owner_id,
+                    status: 'active'
+                },
+                attributes: ['id'],
+                transaction,
+                lock: transaction.LOCK.UPDATE
+            })
+
+            if (!activeOwner) {
+                throw createClientError(
+                    'Product owner is not available for sale',
+                    409,
+                    STOREFRONT_ERROR.PRODUCT_OWNER_UNAVAILABLE
+                )
+            }
+
+            const shop = await Shop.findOne({
+                where: {
+                    id: product.shop_id,
+                    owner_user_id: product.owner_id
+                },
+                attributes: ['id', 'name', 'slug', 'status'],
+                transaction,
+                lock: transaction.LOCK.UPDATE
+            })
+
+            if (!shop || shop.status !== 'active') {
+                throw createClientError(
+                    shop?.status === 'closed'
+                        ? 'Shop is temporarily closed'
+                        : 'Product shop is not available for sale',
+                    409,
+                    shop?.status === 'closed'
+                        ? STOREFRONT_ERROR.SHOP_CLOSED
+                        : STOREFRONT_ERROR.SHOP_UNAVAILABLE
+                )
+            }
+
+            const variant = await ProductVariant.findOne({
+                where: {
+                    id: item.variant_id,
+                    product_id: product.id
+                },
+                transaction,
+                lock: transaction.LOCK.UPDATE
+            })
+
+            if (!variant || variant.status !== 'active') {
+                throw createClientError(
+                    'Product variant is not available for sale',
+                    409,
+                    STOREFRONT_ERROR.VARIANT_UNAVAILABLE
+                )
+            }
+
+            if (Number(variant.stock_quantity) < item.quantity) {
+                throw createClientError(
+                    'Product variant does not have enough stock',
+                    409,
+                    STOREFRONT_ERROR.INSUFFICIENT_STOCK
+                )
+            }
+
+            validatedItems.push({
+                ...item,
+                sku: variant.sku,
+                stock_quantity: Number(variant.stock_quantity),
+                unit_price: variant.price === null
+                    ? Number(product.price)
+                    : Number(variant.price),
+                shop_id: Number(shop.id),
+                shop: {
+                    id: Number(shop.id),
+                    name: shop.name,
+                    slug: shop.slug,
+                    identifier: `${shop.id}-${shop.slug}`
+                }
+            })
+        }
+
+        return validatedItems
+    }
+
+    if (existingTransaction) {
+        return validateInTransaction(existingTransaction)
+    }
+
+    return sequelize.transaction(validateInTransaction)
+}
+
 module.exports = {
     bulkSoftDeleteProducts,
     bulkUpdateProductStatus,
@@ -1664,5 +1989,6 @@ module.exports = {
     restoreProduct,
     softDeleteProduct,
     updateProduct,
-    updateVariantStock
+    updateVariantStock,
+    validatePurchaseItems
 }

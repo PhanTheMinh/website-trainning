@@ -16,6 +16,7 @@ const {
     listDeletedProductsQuerySchema,
     listOwnProductsQuerySchema,
     listProductsQuerySchema,
+    purchaseValidationSchema,
     updateProductSchema,
     updateVariantStockSchema
 } = require('../validators/product.validator')
@@ -232,6 +233,25 @@ async function getProduct(req, res, next) {
             success: true,
             message: 'Product retrieved successfully',
             data: product
+        })
+    } catch (error) {
+        return next(error)
+    }
+}
+
+async function validatePurchase(req, res, next) {
+    try {
+        const validation = purchaseValidationSchema.validate(req.body)
+        throwValidationError(validation)
+
+        const items = await productService.validatePurchaseItems(
+            validation.value.items
+        )
+
+        return res.status(200).json({
+            success: true,
+            message: 'Purchase items are available',
+            data: { items }
         })
     } catch (error) {
         return next(error)
@@ -546,5 +566,6 @@ module.exports = {
     restoreProduct,
     softDeleteProduct,
     updateProduct,
-    updateVariantStock
+    updateVariantStock,
+    validatePurchase
 }

@@ -38,7 +38,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['open-auth'])
+const emit = defineEmits(['open-auth', 'products-unavailable'])
 const route = useRoute()
 const router = useRouter()
 const categories = ref([])
@@ -71,6 +71,13 @@ const pendingStatus = ref('')
 const statusUpdateError = ref('')
 const updatingStatus = ref(false)
 const statusDialogCloseButton = ref(null)
+const filterMenuOpen = ref(false)
+const activeFilterSection = ref('')
+const filterMenuButton = ref(null)
+const filterMenu = ref(null)
+const priceDialogOpen = ref(false)
+const priceDialogCloseButton = ref(null)
+const priceDialogPanel = ref(null)
 
 let categoriesLoaded = false
 let requestSequence = 0
@@ -87,7 +94,7 @@ const bulkStatusOptions = Object.freeze([
   },
   {
     value: 'unactive',
-    label: 'Ngưng bán',
+    label: 'Ngừng bán',
     description: 'Ẩn sản phẩm khỏi cửa hàng; giữ nguyên ảnh, phiên bản và tồn kho.'
   },
   {
@@ -160,13 +167,28 @@ const routeState = computed(() => normalizeRouteState(route.query))
 const appliedSearch = computed(() => routeState.value.search)
 const hasActiveFilters = computed(() => Boolean(
   appliedSearch.value || routeState.value.categoryId || routeState.value.status ||
-  routeState.value.minPrice || routeState.value.maxPrice
+  routeState.value.minPrice || routeState.value.maxPrice ||
+  routeState.value.sort !== DEFAULT_SORT
 ))
+const appliedMenuFilterCount = computed(() => [
+  routeState.value.categoryId,
+  routeState.value.status,
+  routeState.value.minPrice || routeState.value.maxPrice,
+  routeState.value.sort !== DEFAULT_SORT
+].filter(Boolean).length)
 const isInitialLoading = computed(() => loading.value && !items.value.length)
 const isRefreshing = computed(() => loading.value && items.value.length > 0)
 const selectedCategory = computed(() => categories.value.find(
   (category) => String(category.id) === routeState.value.categoryId
 ))
+const selectedStatusLabel = computed(() => statusLabel(routeState.value.status))
+const selectedSortLabel = computed(() => ({
+  name_asc: 'Tên A → Z',
+  name_desc: 'Tên Z → A',
+  price_asc: 'Giá thấp → cao',
+  price_desc: 'Giá cao → thấp',
+  category_asc: 'Nhóm theo danh mục'
+})[routeState.value.sort] || '')
 const priceRangeError = computed(() => {
   const minimum = Number(minPrice.value)
   const maximum = Number(maxPrice.value)
@@ -176,9 +198,6 @@ const priceRangeError = computed(() => {
 const productCountLabel = computed(() =>
   `${pagination.value.totalItems} sản phẩm`
 )
-const outOfStockOnPage = computed(() => items.value.filter(
-  (product) => Number(product.stock) === 0
-).length)
 const categorySuggestions = computed(() => {
   const query = normalizeSearchText(draftSearch.value)
 
@@ -403,6 +422,96 @@ function handleDocumentPointerDown(event) {
   ) {
     closeBulkActionMenu()
   }
+
+  if (
+    filterMenuOpen.value &&
+    !filterMenu.value?.contains(event.target) &&
+    !filterMenuButton.value?.contains(event.target)
+  ) {
+    closeFilterMenu()
+  }
+}
+
+async function toggleFilterMenu() {
+  filterMenuOpen.value = !filterMenuOpen.value
+  activeFilterSection.value = ''
+
+  if (filterMenuOpen.value) {
+    suggestionsOpen.value = false
+    await nextTick()
+    filterMenu.value?.querySelector('button')?.focus()
+  }
+}
+
+function closeFilterMenu({ restoreFocus = false } = {}) {
+  filterMenuOpen.value = false
+  activeFilterSection.value = ''
+  if (restoreFocus) nextTick(() => filterMenuButton.value?.focus())
+}
+
+function toggleFilterSection(section) {
+  activeFilterSection.value = activeFilterSection.value === section ? '' : section
+}
+
+function handleFilterMenuKeydown(event) {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    closeFilterMenu({ restoreFocus: true })
+  }
+}
+
+function applyCategoryFilter(categoryId) {
+  if (loading.value || categoriesLoading.value) return
+  selectedCategoryId.value = String(categoryId || '')
+  closeFilterMenu()
+  updateQuery({ categoryId: categoryId || null, page: null })
+}
+
+function applyStatusFilter(status) {
+  if (loading.value) return
+  selectedStatus.value = status
+  closeFilterMenu()
+  updateQuery({ status: status || null, page: null })
+}
+
+function applySortOption(sort) {
+  if (loading.value || !allowedSorts.has(sort)) return
+  selectedSort.value = sort
+  closeFilterMenu()
+  updateQuery({ sort, page: null })
+}
+
+async function openPriceDialog() {
+  closeFilterMenu()
+  minPrice.value = routeState.value.minPrice
+  maxPrice.value = routeState.value.maxPrice
+  priceDialogOpen.value = true
+  await nextTick()
+  priceDialogCloseButton.value?.focus()
+}
+
+function closePriceDialog() {
+  priceDialogOpen.value = false
+  minPrice.value = routeState.value.minPrice
+  maxPrice.value = routeState.value.maxPrice
+  nextTick(() => filterMenuButton.value?.focus())
+}
+
+function trapPriceDialogFocus(event) {
+  const focusable = Array.from(event.currentTarget.querySelectorAll(
+    'button:not(:disabled), input:not(:disabled), [href], [tabindex]:not([tabindex="-1"])'
+  ))
+  const first = focusable[0]
+  const last = focusable.at(-1)
+
+  if (!first || !last) return
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
 }
 
 async function openStatusDialog() {
@@ -480,6 +589,9 @@ async function confirmStatusUpdate() {
           ? ` ${matchedCount - updatedCount} sản phẩm đã ở trạng thái này.`
           : ''}`
         : 'Không có sản phẩm nào cần thay đổi trạng thái.'
+    }
+    if (pendingStatus.value !== 'active') {
+      emit('products-unavailable', products.map((product) => product.id))
     }
     statusDialog.value = null
     pendingStatus.value = ''
@@ -743,42 +855,16 @@ function handleSearchFocusOut(event) {
   }
 }
 
-function changeCategory() {
-  if (loading.value) {
-    return
-  }
-
-  updateQuery({
-    categoryId: selectedCategoryId.value || null,
-    page: null
-  })
-}
-
-function changeStatus() {
-  if (!loading.value) {
-    updateQuery({ status: selectedStatus.value || null, page: null })
-  }
-}
-
-function applyPriceRange() {
+async function applyPriceRange() {
   if (!loading.value && !priceRangeError.value) {
-    updateQuery({
+    await updateQuery({
       minPrice: minPrice.value || null,
       maxPrice: maxPrice.value || null,
       page: null
     })
+    priceDialogOpen.value = false
+    nextTick(() => filterMenuButton.value?.focus())
   }
-}
-
-function changeSort() {
-  if (loading.value) {
-    return
-  }
-
-  updateQuery({
-    sort: selectedSort.value,
-    page: null
-  })
 }
 
 function clearFilters() {
@@ -791,13 +877,16 @@ function clearFilters() {
   selectedStatus.value = ''
   minPrice.value = ''
   maxPrice.value = ''
+  selectedSort.value = DEFAULT_SORT
   suggestionsOpen.value = false
+  closeFilterMenu()
   updateQuery({
     search: null,
     categoryId: null,
     status: null,
     minPrice: null,
     maxPrice: null,
+    sort: null,
     page: null
   })
 }
@@ -826,6 +915,25 @@ function clearCategoryFilter() {
     categoryId: null,
     page: null
   })
+}
+
+function clearStatusFilter() {
+  if (loading.value) return
+  selectedStatus.value = ''
+  updateQuery({ status: null, page: null })
+}
+
+function clearPriceFilter() {
+  if (loading.value) return
+  minPrice.value = ''
+  maxPrice.value = ''
+  updateQuery({ minPrice: null, maxPrice: null, page: null })
+}
+
+function clearSort() {
+  if (loading.value) return
+  selectedSort.value = DEFAULT_SORT
+  updateQuery({ sort: null, page: null })
 }
 
 function goToPage(page) {
@@ -889,7 +997,7 @@ function formatUpdatedAt(value) {
 function statusLabel(status) {
   const labels = {
     active: 'Đang bán',
-    unactive: 'Ngưng bán',
+    unactive: 'Ngừng bán',
     draft: 'Bản nháp'
   }
 
@@ -952,41 +1060,12 @@ onMounted(() => {
       </div>
 
       <div v-else-if="currentUser" class="my-products-shell">
-        <header class="my-products-hero">
-          <div class="my-products-hero__copy">
-            <RouterLink class="seller-breadcrumb" :to="{ name: 'profile' }">
-              Tài khoản <span aria-hidden="true">/</span> Quản lý sản phẩm
-            </RouterLink>
-            <p class="account-card__eyebrow">Trung tâm bán hàng</p>
+        <header class="my-products-page-heading">
+          <div>
+            <p class="account-card__eyebrow">Khu vực người bán</p>
             <h1>Quản lý sản phẩm</h1>
-            <p>
-              Tìm, sắp xếp và theo dõi toàn bộ sản phẩm do tài khoản của bạn
-              đăng bán trên RunStore.
-            </p>
           </div>
-
-          <div class="my-products-hero__panel">
-            <div class="my-products-hero__actions">
-              <RouterLink
-                class="account-button account-button--primary my-products-add"
-                :to="{ name: 'product-create' }"
-              >
-                <span class="seller-card__plus" aria-hidden="true"></span>
-                Thêm sản phẩm
-              </RouterLink>
-              <RouterLink
-                class="account-button account-button--quiet my-products-trash-link"
-                :to="{ name: 'product-trash' }"
-              >
-                Thùng rác
-              </RouterLink>
-            </div>
-            <dl class="my-products-hero__stats" aria-label="Tổng quan sản phẩm">
-              <div><dt>Tổng sản phẩm</dt><dd>{{ pagination.totalItems }}</dd></div>
-              <div><dt>Đang hiển thị</dt><dd>{{ items.length }}</dd></div>
-              <div><dt>Hết hàng / trang</dt><dd>{{ outOfStockOnPage }}</dd></div>
-            </dl>
-          </div>
+          <RouterLink :to="{ name: 'my-shop' }">Shop của tôi</RouterLink>
         </header>
 
         <p
@@ -1014,27 +1093,8 @@ onMounted(() => {
           {{ operationNotice.message }}
         </p>
 
-        <section class="my-products-toolbar" aria-labelledby="product-tools-title">
-          <div class="my-products-toolbar__heading">
-            <div>
-              <p class="account-card__eyebrow">Công cụ</p>
-              <h2 id="product-tools-title">Tìm và sắp xếp</h2>
-              <p id="product-search-hint" class="my-products-toolbar__hint">
-                Nhập từ khóa rồi nhấn Enter hoặc nút Tìm kiếm để áp dụng.
-              </p>
-            </div>
-            <button
-              v-if="hasActiveFilters"
-              class="my-products-clear"
-              type="button"
-              :disabled="loading"
-              @click="clearFilters"
-            >
-              Xóa bộ lọc
-            </button>
-          </div>
-
-          <form class="my-products-controls" @submit.prevent="submitSearch">
+        <section class="my-products-toolbar" aria-label="Bộ lọc sản phẩm">
+          <form class="my-products-filterbar" @submit.prevent="submitSearch">
             <div
               class="my-products-control my-products-search"
               @focusout="handleSearchFocusOut"
@@ -1047,7 +1107,6 @@ onMounted(() => {
                   autocomplete="off"
                   placeholder="Ví dụ: giày chạy bộ"
                   type="search"
-                  aria-describedby="product-search-hint"
                   :aria-expanded="visibleSuggestions"
                   :aria-activedescendant="activeSuggestionIndex >= 0
                     ? `category-suggestion-${categorySuggestions[activeSuggestionIndex]?.id}`
@@ -1057,9 +1116,13 @@ onMounted(() => {
                   @input="updateSearchSuggestions"
                   @keydown="handleSearchKeydown"
                 />
-                <button type="submit" :disabled="loading">
-                  <span aria-hidden="true">⌕</span>
-                  {{ loading ? 'Đang tải' : 'Tìm kiếm' }}
+                <button
+                  class="my-products-search__submit"
+                  type="submit"
+                  :disabled="loading"
+                  :aria-label="loading ? 'Đang tìm kiếm' : 'Tìm kiếm sản phẩm'"
+                >
+                  <span class="my-products-search__icon" aria-hidden="true"></span>
                 </button>
               </div>
 
@@ -1093,65 +1156,106 @@ onMounted(() => {
               </ul>
             </div>
 
-            <div class="my-products-control">
-              <label for="my-products-category">Danh mục</label>
-              <select
-                id="my-products-category"
-                v-model="selectedCategoryId"
-                :disabled="categoriesLoading || loading"
-                @change="changeCategory"
-              >
-                <option value="">Tất cả danh mục</option>
-                <option
-                  v-for="category in categories"
-                  :key="category.id"
-                  :value="String(category.id)"
-                >
-                  {{ category.name }}
-                </option>
-              </select>
-            </div>
-
-            <div class="my-products-control">
-              <label for="my-products-sort">Sắp xếp</label>
-              <label for="my-products-status">Trạng thái</label>
-              <select
-                id="my-products-status"
-                v-model="selectedStatus"
+            <div class="my-products-filter-menu-wrap">
+              <button
+                ref="filterMenuButton"
+                class="my-products-filter-trigger"
+                type="button"
                 :disabled="loading"
-                @change="changeStatus"
+                :aria-expanded="filterMenuOpen"
+                aria-controls="my-products-filter-menu"
+                @click="toggleFilterMenu"
               >
-                <option value="">Tất cả trạng thái</option>
-                <option value="active">Đang bán</option>
-                <option value="unactive">Ngưng bán</option>
-                <option value="draft">Bản nháp</option>
-              </select>
-            </div>
+                <span>Sắp xếp &amp; lọc</span>
+                <strong v-if="appliedMenuFilterCount">{{ appliedMenuFilterCount }}</strong>
+                <i aria-hidden="true"></i>
+              </button>
 
-            <div class="my-products-control my-products-price-range">
-              <label for="my-products-min-price">Khoảng giá</label>
-              <div>
-                <input id="my-products-min-price" v-model="minPrice" min="0" placeholder="Từ" type="number" />
-                <input v-model="maxPrice" min="0" placeholder="Đến" type="number" />
-                <button type="button" :disabled="loading || priceRangeError" @click="applyPriceRange">Lọc giá</button>
+              <div
+                v-if="filterMenuOpen"
+                id="my-products-filter-menu"
+                ref="filterMenu"
+                class="my-products-filter-menu"
+                @keydown="handleFilterMenuKeydown"
+              >
+                <section class="my-products-filter-section">
+                  <button
+                    type="button"
+                    :aria-expanded="activeFilterSection === 'category'"
+                    @click="toggleFilterSection('category')"
+                  >
+                    <span><b>Danh mục</b><small>{{ selectedCategory?.name || 'Tất cả danh mục' }}</small></span>
+                    <i aria-hidden="true"></i>
+                  </button>
+                  <div v-if="activeFilterSection === 'category'" class="my-products-filter-options">
+                    <button
+                      type="button"
+                      :class="{ active: !selectedCategoryId }"
+                      @click="applyCategoryFilter('')"
+                    >Tất cả danh mục</button>
+                    <button
+                      v-for="category in categories"
+                      :key="category.id"
+                      type="button"
+                      :class="{ active: selectedCategoryId === String(category.id) }"
+                      @click="applyCategoryFilter(category.id)"
+                    >{{ category.name }}</button>
+                  </div>
+                </section>
+
+                <section class="my-products-filter-section">
+                  <button
+                    type="button"
+                    :aria-expanded="activeFilterSection === 'status'"
+                    @click="toggleFilterSection('status')"
+                  >
+                    <span><b>Trạng thái</b><small>{{ selectedStatusLabel || 'Tất cả trạng thái' }}</small></span>
+                    <i aria-hidden="true"></i>
+                  </button>
+                  <div v-if="activeFilterSection === 'status'" class="my-products-filter-options">
+                    <button type="button" :class="{ active: !selectedStatus }" @click="applyStatusFilter('')">Tất cả trạng thái</button>
+                    <button type="button" :class="{ active: selectedStatus === 'active' }" @click="applyStatusFilter('active')">Đang bán</button>
+                    <button type="button" :class="{ active: selectedStatus === 'unactive' }" @click="applyStatusFilter('unactive')">Ngừng bán</button>
+                    <button type="button" :class="{ active: selectedStatus === 'draft' }" @click="applyStatusFilter('draft')">Bản nháp</button>
+                  </div>
+                </section>
+
+                <button class="my-products-filter-price" type="button" @click="openPriceDialog">
+                  <span>
+                    <b>Khoảng giá</b>
+                    <small v-if="routeState.minPrice || routeState.maxPrice">
+                      {{ routeState.minPrice || '0' }} – {{ routeState.maxPrice || 'Không giới hạn' }} ₫
+                    </small>
+                    <small v-else>Chọn mức giá</small>
+                  </span>
+                  <i aria-hidden="true"></i>
+                </button>
+
+                <section class="my-products-filter-section">
+                  <button
+                    type="button"
+                    :aria-expanded="activeFilterSection === 'sort'"
+                    @click="toggleFilterSection('sort')"
+                  >
+                    <span><b>Thứ tự hiển thị</b><small>{{ selectedSortLabel }}</small></span>
+                    <i aria-hidden="true"></i>
+                  </button>
+                  <div v-if="activeFilterSection === 'sort'" class="my-products-filter-options">
+                    <button type="button" :class="{ active: selectedSort === 'name_asc' }" @click="applySortOption('name_asc')">Tên: A → Z</button>
+                    <button type="button" :class="{ active: selectedSort === 'name_desc' }" @click="applySortOption('name_desc')">Tên: Z → A</button>
+                    <button type="button" :class="{ active: selectedSort === 'price_asc' }" @click="applySortOption('price_asc')">Giá: thấp → cao</button>
+                    <button type="button" :class="{ active: selectedSort === 'price_desc' }" @click="applySortOption('price_desc')">Giá: cao → thấp</button>
+                    <button type="button" :class="{ active: selectedSort === 'category_asc' }" @click="applySortOption('category_asc')">Nhóm theo danh mục</button>
+                  </div>
+                </section>
+
+                <button
+                  v-if="appliedMenuFilterCount"
+                  class="my-products-filter-reset"
+                  type="button"
+                  @click="clearFilters"
+                >Đặt lại bộ lọc</button>
               </div>
-              <small v-if="priceRangeError" role="alert">Giá từ không được lớn hơn giá đến.</small>
-            </div>
-
-            <div class="my-products-control">
-              <label for="my-products-sort">Sắp xếp</label>
-              <select
-                id="my-products-sort"
-                v-model="selectedSort"
-                :disabled="loading"
-                @change="changeSort"
-              >
-                <option value="name_asc">Tên: A → Z</option>
-                <option value="name_desc">Tên: Z → A</option>
-                <option value="price_asc">Giá: thấp → cao</option>
-                <option value="price_desc">Giá: cao → thấp</option>
-                <option value="category_asc">Nhóm theo danh mục</option>
-              </select>
             </div>
           </form>
 
@@ -1181,6 +1285,42 @@ onMounted(() => {
               <span aria-hidden="true">×</span>
               <span class="sr-only">Xóa bộ lọc danh mục</span>
             </button>
+            <button
+              v-if="routeState.status"
+              type="button"
+              :disabled="loading"
+              @click="clearStatusFilter"
+            >
+              {{ selectedStatusLabel }}
+              <span aria-hidden="true">×</span>
+              <span class="sr-only">Xóa bộ lọc trạng thái</span>
+            </button>
+            <button
+              v-if="routeState.minPrice || routeState.maxPrice"
+              type="button"
+              :disabled="loading"
+              @click="clearPriceFilter"
+            >
+              Giá: {{ routeState.minPrice || '0' }} – {{ routeState.maxPrice || '∞' }} ₫
+              <span aria-hidden="true">×</span>
+              <span class="sr-only">Xóa bộ lọc giá</span>
+            </button>
+            <button
+              v-if="routeState.sort !== DEFAULT_SORT"
+              type="button"
+              :disabled="loading"
+              @click="clearSort"
+            >
+              {{ selectedSortLabel }}
+              <span aria-hidden="true">×</span>
+              <span class="sr-only">Đặt lại thứ tự sản phẩm</span>
+            </button>
+            <button
+              class="my-products-filter-chips__clear"
+              type="button"
+              :disabled="loading"
+              @click="clearFilters"
+            >Xóa tất cả</button>
           </div>
 
           <div
@@ -1206,14 +1346,31 @@ onMounted(() => {
                 {{ productCountLabel }}
               </h2>
             </div>
-            <div class="my-products-results__meta">
-              <p v-if="appliedSearch">
-                Kết quả cho “{{ appliedSearch }}”
-              </p>
-              <span v-if="isRefreshing" class="my-products-refresh-badge" role="status">
-                <i aria-hidden="true"></i>
-                Đang cập nhật
-              </span>
+            <div class="my-products-results__header-actions">
+              <div class="my-products-results__meta">
+                <p v-if="appliedSearch">
+                  Kết quả cho “{{ appliedSearch }}”
+                </p>
+                <span v-if="isRefreshing" class="my-products-refresh-badge" role="status">
+                  <i aria-hidden="true"></i>
+                  Đang cập nhật
+                </span>
+              </div>
+              <div class="my-products-quick-actions" aria-label="Thao tác sản phẩm">
+                <RouterLink
+                  class="account-button account-button--primary my-products-add"
+                  :to="{ name: 'product-create' }"
+                >
+                  <span class="seller-card__plus" aria-hidden="true"></span>
+                  Thêm sản phẩm
+                </RouterLink>
+                <RouterLink
+                  class="account-button account-button--quiet my-products-trash-link"
+                  :to="{ name: 'product-trash' }"
+                >
+                  Thùng rác
+                </RouterLink>
+              </div>
             </div>
           </div>
 
@@ -1370,7 +1527,7 @@ onMounted(() => {
             <div class="my-products-state__mark" aria-hidden="true">0</div>
             <div>
               <h3>Không tìm thấy sản phẩm phù hợp</h3>
-              <p>Hãy xóa từ khóa hoặc bộ lọc danh mục để xem lại tất cả sản phẩm.</p>
+              <p>Hãy xóa từ khóa hoặc các bộ lọc để xem lại tất cả sản phẩm.</p>
             </div>
             <button
               class="account-button account-button--quiet"
@@ -1449,14 +1606,6 @@ onMounted(() => {
 
                 <div class="my-product-card__actions">
                   <RouterLink
-                    v-if="row.product.status === 'active'"
-                    class="my-product-card__view"
-                    :to="{ name: 'product-detail', params: { id: row.product.id } }"
-                    :aria-label="`Xem ${row.product.title}`"
-                  >
-                    Xem
-                  </RouterLink>
-                  <RouterLink
                     :to="{ name: 'product-edit', params: { id: row.product.id } }"
                     :aria-label="`Chỉnh sửa ${row.product.title}`"
                   >
@@ -1528,6 +1677,61 @@ onMounted(() => {
         </button>
       </div>
     </section>
+
+    <Transition name="modal-fade">
+      <div
+        v-if="priceDialogOpen"
+        class="my-products-price-modal"
+        role="presentation"
+        @mousedown.self="closePriceDialog"
+      >
+        <form
+          ref="priceDialogPanel"
+          class="my-products-price-modal__panel"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="price-filter-title"
+          @submit.prevent="applyPriceRange"
+          @keydown.esc.stop.prevent="closePriceDialog"
+          @keydown.tab="trapPriceDialogFocus"
+        >
+          <header>
+            <div>
+              <p class="account-card__eyebrow">Bộ lọc</p>
+              <h2 id="price-filter-title">Chọn khoảng giá</h2>
+            </div>
+            <button
+              ref="priceDialogCloseButton"
+              type="button"
+              aria-label="Đóng cửa sổ lọc giá"
+              @click="closePriceDialog"
+            >×</button>
+          </header>
+
+          <div class="my-products-price-modal__fields">
+            <label>
+              <span>Giá từ</span>
+              <input v-model="minPrice" min="0" inputmode="numeric" placeholder="0" type="number" />
+            </label>
+            <label>
+              <span>Giá đến</span>
+              <input v-model="maxPrice" min="0" inputmode="numeric" placeholder="Không giới hạn" type="number" />
+            </label>
+          </div>
+
+          <p v-if="priceRangeError" class="my-products-price-modal__error" role="alert">
+            Giá từ không được lớn hơn giá đến.
+          </p>
+
+          <footer>
+            <button type="button" @click="closePriceDialog">Hủy</button>
+            <button type="submit" :disabled="loading || priceRangeError">
+              {{ loading ? 'Đang lọc...' : 'Lọc giá' }}
+            </button>
+          </footer>
+        </form>
+      </div>
+    </Transition>
 
     <Transition name="modal-fade">
       <div
@@ -1620,7 +1824,7 @@ onMounted(() => {
         >
           <header class="product-status-modal__header">
             <div>
-              <p class="account-card__eyebrow">Bulk update</p>
+              <p class="account-card__eyebrow">Cập nhật hàng loạt</p>
               <h2 id="status-modal-title">Cập nhật trạng thái sản phẩm</h2>
             </div>
             <button

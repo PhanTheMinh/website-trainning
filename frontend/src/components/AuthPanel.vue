@@ -24,7 +24,7 @@ function switchMode(nextMode) {
 
 async function submitAuth() {
   if (!form.email || !form.password || (isRegister.value && !form.full_name)) {
-    message.value = 'Vui long dien day du thong tin bat buoc.'
+    message.value = 'Vui lòng điền đầy đủ thông tin bắt buộc.'
     return
   }
 
@@ -41,7 +41,7 @@ async function submitAuth() {
         password: form.password
       })
 
-      message.value = `${response.message}. Ban co the dang nhap ngay bay gio.`
+      message.value = `${response.message}. Bạn có thể đăng nhập ngay bây giờ.`
       mode.value = 'login'
       return
     }
@@ -61,38 +61,38 @@ async function submitAuth() {
 </script>
 
 <template>
-  <section class="auth-panel" aria-label="Tai khoan">
+  <section class="auth-panel" aria-label="Tài khoản">
     <div class="auth-copy">
-      <p class="eyebrow">Tai khoan</p>
-      <h2>{{ isRegister ? 'Tao tai khoan moi' : 'Dang nhap thanh vien' }}</h2>
-      <p>Dang ky de luu thong tin khach hang va quan ly ho so tren moi thiet bi.</p>
+      <p class="eyebrow">Tài khoản</p>
+      <h2>{{ isRegister ? 'Tạo tài khoản' : 'Đăng nhập' }}</h2>
+      <p>{{ isRegister ? 'Tạo tài khoản để quản lý hồ sơ và sản phẩm.' : 'Đăng nhập để tiếp tục với RunStore.' }}</p>
     </div>
 
     <form class="auth-form" @submit.prevent="submitAuth">
-      <div class="auth-tabs" role="tablist" aria-label="Chon form tai khoan">
+      <div class="auth-tabs" role="tablist" aria-label="Chọn biểu mẫu tài khoản">
         <button
           type="button"
           :class="{ active: mode === 'login' }"
           @click="switchMode('login')"
         >
-          Login
+          Đăng nhập
         </button>
         <button
           type="button"
           :class="{ active: mode === 'register' }"
           @click="switchMode('register')"
         >
-          Register
+          Đăng ký
         </button>
       </div>
 
       <div v-if="isRegister" class="field">
-        <label for="auth-name">Ho ten</label>
+        <label for="auth-name">Họ và tên</label>
         <input
           id="auth-name"
           v-model="form.full_name"
           autocomplete="name"
-          placeholder="Nguyen Van A"
+          placeholder="Nguyễn Văn A"
           required
         />
       </div>
@@ -110,7 +110,7 @@ async function submitAuth() {
       </div>
 
       <div v-if="isRegister" class="field">
-        <label for="auth-phone">So dien thoai</label>
+        <label for="auth-phone">Số điện thoại</label>
         <input
           id="auth-phone"
           v-model="form.phone"
@@ -120,7 +120,7 @@ async function submitAuth() {
       </div>
 
       <div v-if="isRegister" class="field">
-        <label for="auth-address">Dia chi</label>
+        <label for="auth-address">Địa chỉ</label>
         <input
           id="auth-address"
           v-model="form.address"
@@ -129,13 +129,13 @@ async function submitAuth() {
       </div>
 
       <div class="field">
-        <label for="auth-password">Mat khau</label>
+        <label for="auth-password">Mật khẩu</label>
         <input
           id="auth-password"
           v-model="form.password"
           :autocomplete="isRegister ? 'new-password' : 'current-password'"
           minlength="6"
-          placeholder="Nhap mat khau"
+          placeholder="Nhập mật khẩu"
           type="password"
           required
         />
@@ -144,14 +144,14 @@ async function submitAuth() {
       <button class="submit-auth" type="submit" :disabled="submitting">
         {{
           submitting
-            ? 'Dang xu ly...'
+            ? 'Đang xử lý...'
             : isRegister
-              ? 'Tao tai khoan'
-              : 'Dang nhap'
+              ? 'Tạo tài khoản'
+              : 'Đăng nhập'
         }}
       </button>
 
-      <button class="text-button" type="button" @click="emit('close')">Dong</button>
+      <button class="text-button" type="button" @click="emit('close')">Đóng</button>
       <p v-if="message" class="form-message">{{ message }}</p>
     </form>
   </section>

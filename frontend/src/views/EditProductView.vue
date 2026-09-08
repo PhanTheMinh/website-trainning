@@ -709,7 +709,7 @@ onBeforeUnmount(() => {
           <RouterLink class="seller-breadcrumb" :to="{ name: 'my-products' }">
             Quản lý sản phẩm <span aria-hidden="true">/</span> Chỉnh sửa
           </RouterLink>
-          <p class="eyebrow">Seller studio · Chỉnh sửa</p>
+          <p class="eyebrow">Khu vực người bán · Chỉnh sửa</p>
           <h1>Hoàn thiện sản phẩm</h1>
           <p>Cập nhật nội dung, thư viện ảnh và tồn kho trong một lần lưu an toàn.</p>
         </div>
@@ -751,7 +751,7 @@ onBeforeUnmount(() => {
           <div class="product-edit-context">
             <div>
               <span>Sản phẩm #{{ product.id }}</span>
-              <strong>{{ product.status === 'active' ? 'Đang bán' : product.status === 'unactive' ? 'Ngưng bán' : 'Bản nháp' }}</strong>
+              <strong>{{ product.status === 'active' ? 'Đang bán' : product.status === 'unactive' ? 'Ngừng bán' : 'Bản nháp' }}</strong>
             </div>
             <p v-if="isDirty">Bạn có thay đổi chưa lưu.</p>
             <p v-else>Dữ liệu đang đồng bộ với máy chủ.</p>

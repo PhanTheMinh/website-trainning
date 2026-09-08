@@ -480,12 +480,12 @@ onMounted(loadCategories)
           <RouterLink class="seller-breadcrumb" :to="{ name: 'my-products' }">
             Quản lý sản phẩm <span aria-hidden="true">/</span> Thêm mới
           </RouterLink>
-          <p class="eyebrow">Đăng bán · Seller studio</p>
+          <p class="eyebrow">Khu vực người bán</p>
           <h1>Thêm sản phẩm</h1>
-          <p>Tạo thông tin, thư viện ảnh và tồn kho từng phiên bản trong một luồng tập trung.</p>
+          <p>Thông tin, hình ảnh và tồn kho sản phẩm.</p>
         </div>
         <div class="seller-form-hero__signal" aria-hidden="true">
-          <strong>01</strong><span>READY TO LIST</span>
+          <strong>01</strong><span>SẢN PHẨM MỚI</span>
         </div>
       </header>
 
@@ -497,7 +497,7 @@ onMounted(loadCategories)
         <h3>Đăng nhập để thêm sản phẩm</h3>
         <p>Bạn cần đăng nhập trước khi đăng sản phẩm bán.</p>
         <button type="button" @click="emit('open-auth')">
-          Login / Register
+          Đăng nhập / Đăng ký
         </button>
       </div>
 

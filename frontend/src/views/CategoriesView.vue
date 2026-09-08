@@ -63,10 +63,7 @@ onMounted(loadProducts)
       <div class="section-heading">
         <p class="eyebrow">Danh mục</p>
         <h1>Danh mục chạy bộ</h1>
-        <p>
-          Chọn đúng nhóm sản phẩm. Số lượng bên dưới được tính từ các sản phẩm
-          đang hoạt động trong hệ thống.
-        </p>
+        <p>Chọn nhóm sản phẩm phù hợp.</p>
       </div>
 
       <div class="category-pills" aria-label="Điều hướng danh mục">
@@ -138,7 +135,7 @@ onMounted(loadProducts)
 
         <div v-if="!categoryGroups.some((group) => group.count)" class="catalog-empty category-overview-empty">
           <h3>Cửa hàng chưa có sản phẩm</h3>
-          <p>Các danh mục đã sẵn sàng và sẽ cập nhật ngay khi có sản phẩm mới.</p>
+          <p>Chưa có sản phẩm.</p>
           <RouterLink to="/products">Xem tất cả sản phẩm</RouterLink>
         </div>
       </template>

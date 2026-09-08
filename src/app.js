@@ -71,6 +71,7 @@ const authRoute = require('./routes/auth.route')
 const userRoute = require('./routes/users.route')
 const categoryRoute = require('./routes/categories.route')
 const productRoute = require('./routes/products.route')
+const shopRoute = require('./routes/shops.route')
 
 app.use(helmet())
 app.use(cors({
@@ -129,6 +130,7 @@ app.use('/api/auth', authRoute)
 app.use('/api/users',userRoute)
 app.use('/api/categories', categoryRoute)
 app.use('/api/products', productRoute)
+app.use('/api/shops', shopRoute)
 
 if (process.env.NODE_ENV !== 'test') {
     app.use(morgan('dev'))
@@ -182,6 +184,7 @@ app.use(function errorHandler(error, req, res, _next) {
     }
 
     const statusCode = error.statusCode || 500
+    const publicCode = statusCode < 500 ? error.publicCode : null
 
     if (statusCode >= 500 && process.env.NODE_ENV !== 'test') {
         console.error(error)
@@ -191,7 +194,8 @@ app.use(function errorHandler(error, req, res, _next) {
         success: false,
         message: statusCode >= 500
             ? 'Internal server error'
-            : error.message
+            : error.message,
+        ...(publicCode ? { code: publicCode } : {})
     })
 })
 

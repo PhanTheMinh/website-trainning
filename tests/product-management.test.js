@@ -7,6 +7,7 @@ const {
     Product,
     ProductImage,
     ProductVariant,
+    Shop,
     User
 } = require('../src/models')
 const { hashPassword } = require('../src/utils/hash')
@@ -33,8 +34,17 @@ async function authenticatedAgent(email = ownerAEmail) {
 
 async function createManagedProduct(owner, overrides = {}) {
     productSequence += 1
+    const [shop] = await Shop.findOrCreate({
+        where: { owner_user_id: owner.id },
+        defaults: {
+            name: `Test shop ${owner.id}`,
+            slug: `management-shop-${owner.id}`,
+            status: 'active'
+        }
+    })
     const product = await Product.create({
         owner_id: owner.id,
+        shop_id: shop.id,
         title: overrides.title || `Managed product ${productSequence}`,
         description: overrides.description || 'A valid management test product description.',
         category: category.slug,
@@ -705,8 +715,27 @@ describe('Complete owner product management security and lifecycle', function ()
                 ids: [product.id],
                 status: 'unactive'
             })).status).toBe(200)
-            expect((await request(app).get(`/api/products/${product.id}`)).status)
-                .toBe(404)
+            const stoppedDetail = await request(app).get(
+                `/api/products/${product.id}`
+            )
+            expect(stoppedDetail.status).toBe(200)
+            expect(stoppedDetail.body.data.status).toBe('unactive')
+            expect(stoppedDetail.body.data.available).toBe(false)
+            expect(stoppedDetail.body.data.variants).toHaveLength(0)
+            const hiddenList = await request(app).get('/api/products?limit=20')
+            expect(hiddenList.body.data.some(
+                (item) => Number(item.id) === Number(product.id)
+            )).toBe(false)
+            const managementList = await agent.get(
+                '/api/products/mine?status=unactive&limit=50'
+            )
+            const managedProduct = managementList.body.data.items.find(
+                (item) => Number(item.id) === Number(product.id)
+            )
+
+            expect(managementList.status).toBe(200)
+            expect(managedProduct).toBeDefined()
+            expect(managedProduct.status).toBe('unactive')
             expect((await agent.patch(endpoint).send({
                 ids: [product.id],
                 status: 'active'
@@ -733,6 +762,122 @@ describe('Complete owner product management security and lifecycle', function ()
             expect(bulkResponse.status).toBe(200)
             expect(editResponse.status).toBe(200)
             expect(editResponse.body.data.title).toBe('Edited after bulk status')
+        })
+
+        it('enforces product, variant and stock rules before purchase', async function () {
+            const product = await createManagedProduct(ownerA, { stock: 3 })
+            const variant = await ProductVariant.findOne({
+                where: { product_id: product.id }
+            })
+            const purchase = (quantity = 1) => request(app)
+                .post('/api/products/purchase-validation')
+                .send({
+                    items: [{
+                        product_id: product.id,
+                        variant_id: variant.id,
+                        quantity
+                    }]
+                })
+
+            const available = await purchase(3)
+            expect(available.status).toBe(200)
+            expect(available.body.data.items[0]).toMatchObject({
+                product_id: Number(product.id),
+                variant_id: Number(variant.id),
+                quantity: 3,
+                stock_quantity: 3,
+                unit_price: 500000
+            })
+            const insufficientStock = await purchase(4)
+            expect(insufficientStock.status).toBe(409)
+            expect(insufficientStock.body.code).toBe('INSUFFICIENT_STOCK')
+
+            await variant.update({ stock_quantity: 0 })
+            await product.reload()
+            const soldOutDetail = await request(app).get(
+                `/api/products/${product.id}`
+            )
+            expect(product.status).toBe('active')
+            expect(soldOutDetail.status).toBe(200)
+            expect(soldOutDetail.body.data.status).toBe('active')
+            expect(soldOutDetail.body.data.available).toBe(false)
+            const soldOutPurchase = await purchase()
+            expect(soldOutPurchase.status).toBe(409)
+            expect(soldOutPurchase.body.code).toBe('INSUFFICIENT_STOCK')
+
+            await variant.update({ stock_quantity: 2 })
+            expect((await purchase(2)).status).toBe(200)
+
+            await product.update({ status: 'unactive' })
+            const stoppedPurchase = await purchase()
+            expect(stoppedPurchase.status).toBe(409)
+            expect(stoppedPurchase.body.code).toBe('PRODUCT_STOPPED')
+
+            await product.update({ status: 'draft' })
+            const hiddenDetail = await request(app).get(
+                `/api/products/${product.id}`
+            )
+            const draftPurchase = await purchase()
+            expect(hiddenDetail.status).toBe(404)
+            expect(hiddenDetail.body.code).toBe('PRODUCT_NOT_FOUND')
+            expect(draftPurchase.status).toBe(409)
+            expect(draftPurchase.body.code).toBe('PRODUCT_STOPPED')
+
+            await product.update({ status: 'active' })
+            await variant.update({ status: 'inactive' })
+            const unavailableVariant = await purchase()
+            expect(unavailableVariant.status).toBe(409)
+            expect(unavailableVariant.body.code).toBe('VARIANT_UNAVAILABLE')
+        })
+
+        it('hides and blocks products while their owner account is inactive', async function () {
+            const product = await createManagedProduct(ownerA, { stock: 2 })
+            const variant = await ProductVariant.findOne({
+                where: { product_id: product.id }
+            })
+            const encodedTitle = encodeURIComponent(product.title)
+            const purchase = () => request(app)
+                .post('/api/products/purchase-validation')
+                .send({
+                    items: [{
+                        product_id: product.id,
+                        variant_id: variant.id,
+                        quantity: 1
+                    }]
+                })
+
+            expect((await request(app).get(`/api/products/${product.id}`)).status)
+                .toBe(200)
+            expect((await purchase()).status).toBe(200)
+
+            await ownerA.update({ status: 'inactive' })
+
+            try {
+                const hiddenList = await request(app).get(
+                    `/api/products?search=${encodedTitle}&limit=20`
+                )
+
+                const hiddenDetail = await request(app).get(
+                    `/api/products/${product.id}`
+                )
+                const blockedPurchase = await purchase()
+                expect(hiddenDetail.status).toBe(404)
+                expect(hiddenDetail.body.code)
+                    .toBe('PRODUCT_OWNER_UNAVAILABLE')
+                expect(hiddenList.status).toBe(200)
+                expect(hiddenList.body.pagination.totalItems).toBe(0)
+                expect(hiddenList.body.data.some(
+                    (item) => Number(item.id) === Number(product.id)
+                )).toBe(false)
+                expect(blockedPurchase.status).toBe(409)
+                expect(blockedPurchase.body.code)
+                    .toBe('PRODUCT_OWNER_UNAVAILABLE')
+            } finally {
+                await ownerA.update({ status: 'active' })
+            }
+
+            expect((await request(app).get(`/api/products/${product.id}`)).status)
+                .toBe(200)
         })
     })
 })

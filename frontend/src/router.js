@@ -9,6 +9,9 @@ import AddProductView from './views/AddProductView.vue'
 import ProductDetailView from './views/ProductDetailView.vue'
 import EditProductView from './views/EditProductView.vue'
 import ProductTrashView from './views/ProductTrashView.vue'
+import ShopView from './views/ShopView.vue'
+import MyShopView from './views/MyShopView.vue'
+import NotFoundView from './views/NotFoundView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -30,6 +33,14 @@ const router = createRouter({
       path: '/me/products',
       name: 'my-products',
       component: MyProductsView,
+      meta: {
+        requiresAuth: true
+      }
+    },
+    {
+      path: '/me/shop',
+      name: 'my-shop',
+      component: MyShopView,
       meta: {
         requiresAuth: true
       }
@@ -69,6 +80,11 @@ const router = createRouter({
       component: ProductDetailView
     },
     {
+      path: '/shops/:identifier',
+      name: 'shop',
+      component: ShopView
+    },
+    {
       path: '/categories',
       name: 'categories',
       component: CategoriesView
@@ -85,7 +101,8 @@ const router = createRouter({
     },
     {
       path: '/:pathMatch(.*)*',
-      redirect: '/'
+      name: 'not-found',
+      component: NotFoundView
     }
   ],
   scrollBehavior(to, from, savedPosition) {

@@ -7,6 +7,7 @@ const {
     Product,
     ProductImage,
     ProductVariant,
+    Shop,
     User
 } = require('../src/models')
 const { hashPassword } = require('../src/utils/hash')
@@ -36,8 +37,17 @@ async function authenticatedAgent() {
 }
 
 async function createProductWithVariant(data, index) {
+    const [shop] = await Shop.findOrCreate({
+        where: { owner_user_id: data.ownerId },
+        defaults: {
+            name: `Test shop ${data.ownerId}`,
+            slug: `my-products-shop-${data.ownerId}`,
+            status: 'active'
+        }
+    })
     const product = await Product.create({
         owner_id: data.ownerId,
+        shop_id: shop.id,
         title: data.title,
         description: `Mô tả kiểm thử cho ${data.title}`,
         category: data.category?.slug || 'legacy-unclassified',
@@ -244,6 +254,73 @@ describe('Account product management APIs', function () {
         expect(ascending.body.data.items[0].min_price).toBe(50000)
     })
 
+    it('filters statuses without exposing another account products', async function () {
+        const agent = await authenticatedAgent()
+        const draftProduct = ownerProducts[1]
+        const inactiveProduct = ownerProducts[2]
+
+        await draftProduct.update({ status: 'draft' })
+        await inactiveProduct.update({ status: 'unactive' })
+
+        try {
+            const draftResponse = await agent.get(
+                '/api/products/mine?status=draft&limit=50'
+            )
+            const inactiveResponse = await agent.get(
+                '/api/products/mine?status=unactive&limit=50'
+            )
+
+            expect(draftResponse.status).toBe(200)
+            expect(draftResponse.body.data.items.map((item) => Number(item.id)))
+                .toEqual([Number(draftProduct.id)])
+            expect(inactiveResponse.status).toBe(200)
+            expect(inactiveResponse.body.data.items.map((item) => Number(item.id)))
+                .toEqual([Number(inactiveProduct.id)])
+        } finally {
+            await Promise.all([
+                draftProduct.update({ status: 'active' }),
+                inactiveProduct.update({ status: 'active' })
+            ])
+        }
+    })
+
+    it('matches a real variant price instead of only overlapping min-max bounds', async function () {
+        const agent = await authenticatedAgent()
+        const splitPriceProduct = ownerProducts[0]
+        const highVariant = await ProductVariant.create({
+            product_id: splitPriceProduct.id,
+            sku: `MY-PRODUCTS-${testRun}-SPLIT-PRICE`,
+            variant_key: 'split-price-high',
+            price: 500000,
+            image_url: null,
+            stock_quantity: 2,
+            status: 'active',
+            is_default: false
+        })
+
+        try {
+            const middleRange = await agent.get(
+                '/api/products/mine?minPrice=100000&maxPrice=200000&limit=50'
+            )
+            const highRange = await agent.get(
+                '/api/products/mine?minPrice=450000&maxPrice=550000&limit=50'
+            )
+            const middleIds = middleRange.body.data.items.map(
+                (item) => Number(item.id)
+            )
+            const highIds = highRange.body.data.items.map(
+                (item) => Number(item.id)
+            )
+
+            expect(middleRange.status).toBe(200)
+            expect(highRange.status).toBe(200)
+            expect(middleIds).not.toContain(Number(splitPriceProduct.id))
+            expect(highIds).toContain(Number(splitPriceProduct.id))
+        } finally {
+            await highVariant.destroy()
+        }
+    })
+
     it('searches names case-insensitively with and without Vietnamese accents', async function () {
         const agent = await authenticatedAgent()
         const withoutAccent = await agent.get(
@@ -266,6 +343,9 @@ describe('Account product management APIs', function () {
         const query = new URLSearchParams({
             search: 'Sản phẩm',
             categoryId: String(shoeCategory.id),
+            status: 'active',
+            minPrice: '120000',
+            maxPrice: '180000',
             sort: 'price_desc',
             page: '1',
             limit: '10'
@@ -281,6 +361,10 @@ describe('Account product management APIs', function () {
             (item) => Number(item.category.id) === Number(shoeCategory.id)
         )).toBe(true)
         expect(items.every((item) => item.title.includes('Sản phẩm'))).toBe(true)
+        expect(items.every((item) => item.status === 'active')).toBe(true)
+        expect(items.every(
+            (item) => item.min_price >= 120000 && item.min_price <= 180000
+        )).toBe(true)
         expectPriceOrder(items, 'desc')
         expect(response.body.data.pagination.totalItems).toBe(items.length)
     })
@@ -311,6 +395,8 @@ describe('Account product management APIs', function () {
             'page=99',
             'limit=51',
             'sort=title_drop_table',
+            'minPrice=-1',
+            'minPrice=200000&maxPrice=100000',
             'categoryId=999999999',
             `categoryId=${inactiveCategory.id}`
         ]

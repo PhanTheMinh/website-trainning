@@ -155,7 +155,6 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
         </span>
         <span class="run-brand__copy">
           <strong>RUN<span>STORE</span></strong>
-          <small>Built to move</small>
         </span>
       </RouterLink>
 
@@ -269,7 +268,6 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
               <span v-else>{{ sessionLoading ? '…' : accountInitials }}</span>
             </span>
             <span class="run-account__copy">
-              <small>{{ currentUser ? 'Xin chào' : 'Thành viên' }}</small>
               <strong>{{ sessionLoading ? 'Đang tải...' : accountName }}</strong>
             </span>
             <span class="run-chevron" aria-hidden="true"></span>
@@ -303,7 +301,6 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
               <RouterLink class="run-account__item" to="/profile" role="menuitem" @click="closeMenus">
                 <span>
                   <strong>Hồ sơ cá nhân</strong>
-                  <small>Thông tin và ảnh đại diện</small>
                 </span>
                 <span class="run-item-arrow" aria-hidden="true"></span>
               </RouterLink>
@@ -330,8 +327,7 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
                 <span class="run-account__avatar run-account__avatar--large" aria-hidden="true">
                   <span>TK</span>
                 </span>
-                <strong>Chào mừng đến RunStore</strong>
-                <p>Đăng nhập để quản lý hồ sơ và sản phẩm của bạn.</p>
+                <strong>Tài khoản RunStore</strong>
                 <button type="button" @click="openAuthentication">
                   Đăng nhập / Đăng ký
                 </button>

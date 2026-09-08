@@ -11,6 +11,12 @@ function createProduct(overrides = {}) {
     min_price: 1200000,
     max_price: 1350000,
     stock: 4,
+    shop: {
+      id: 9,
+      name: 'RunStore Hà Nội',
+      slug: 'runstore-ha-noi',
+      identifier: '9-runstore-ha-noi'
+    },
     images: [{ image_url: '/uploads/products/example.png' }],
     options: [],
     variants: [{
@@ -43,6 +49,11 @@ describe('mapApiProduct', () => {
     expect(product.imageFrames).toEqual([
       'http://localhost:3000/uploads/products/example.png'
     ])
+    expect(product.shopRoute).toEqual({
+      name: 'shop',
+      params: { identifier: '9-runstore-ha-noi' }
+    })
+    expect(product.cartItem.shop_id).toBe(9)
   })
 
   it('requires the detail page to select products with options', () => {
@@ -52,5 +63,15 @@ describe('mapApiProduct', () => {
 
     expect(product.requiresSelection).toBe(true)
     expect(product.cartItem).toBeNull()
+  })
+
+  it('preserves shop navigation when opening a product from a shop page', () => {
+    const product = mapApiProduct(createProduct(), {
+      fromShop: '9-runstore-ha-noi'
+    })
+
+    expect(product.detailRoute.query).toEqual({
+      fromShop: '9-runstore-ha-noi'
+    })
   })
 })

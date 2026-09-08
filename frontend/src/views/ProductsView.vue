@@ -192,19 +192,9 @@ watch(
   <main class="catalog-page">
     <section class="section catalog-hero">
       <div class="section-heading">
-        <p class="eyebrow">{{ isCategoryPage ? 'Danh mục' : 'Sản phẩm' }}</p>
         <h1>{{ categoryNotFound ? 'Danh mục không tồn tại' : pageTitle }}</h1>
-        <p v-if="categoryNotFound">
-          Đường dẫn danh mục không hợp lệ hoặc danh mục không còn được hỗ trợ.
-        </p>
-        <p v-else-if="searchTerm">
+        <p v-if="searchTerm && !categoryNotFound">
           {{ pagination.totalItems }} kết quả cho “{{ searchTerm }}”
-        </p>
-        <p v-else-if="selectedCategory">
-          {{ selectedCategory.description }}
-        </p>
-        <p v-else>
-          Khám phá toàn bộ sản phẩm đang hoạt động trong cửa hàng.
         </p>
       </div>
 
@@ -223,8 +213,7 @@ watch(
       </div>
 
       <div v-if="categoryNotFound" class="catalog-empty">
-        <h3>Không thể mở danh mục này</h3>
-        <p>Hãy chọn một danh mục hợp lệ hoặc quay lại danh sách đầy đủ.</p>
+        <p>Danh mục không tồn tại.</p>
         <RouterLink to="/products">Xem tất cả sản phẩm</RouterLink>
       </div>
 
@@ -306,6 +295,7 @@ watch(
         >
           Xem tất cả sản phẩm
         </RouterLink>
+
       </template>
     </section>
   </main>

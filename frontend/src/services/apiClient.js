@@ -31,6 +31,7 @@ async function request(path, options = {}) {
     )
 
     error.status = response.status
+    error.code = typeof data === 'object' && data ? data.code || '' : ''
     error.data = data
     throw error
   }

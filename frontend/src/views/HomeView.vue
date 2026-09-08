@@ -33,7 +33,7 @@ const catalogProducts = ref([])
 const productFacets = ref({ categories: [], brands: [] })
 const homePagination = ref({
   currentPage: 1,
-  pageSize: 12,
+  pageSize: 6,
   totalItems: 0,
   totalPages: 0,
   hasPreviousPage: false,
@@ -199,7 +199,7 @@ async function loadProducts() {
 
   try {
     const [catalogResponse, ...bestSellerResponses] = await Promise.all([
-      getProducts({ page: 1, limit: 12, sort: 'featured' }),
+      getProducts({ page: 1, limit: 6, sort: 'featured' }),
       ...bestSellerNames.map((name) => getProducts({
         search: name,
         page: 1,
@@ -236,7 +236,7 @@ async function loadCatalogProducts(page) {
       category: selectedCategory.value === 'all' ? undefined : selectedCategory.value,
       brand: selectedBrand.value === 'all' ? undefined : brand,
       page,
-      limit: 12,
+      limit: 6,
       sort: 'featured'
     })
     catalogProducts.value = response.data
@@ -306,15 +306,12 @@ onBeforeUnmount(() => {
       <div class="home-hero__grid" aria-hidden="true"></div>
       <div class="home-hero__orb" aria-hidden="true"></div>
       <div class="hero-content">
-        <p class="eyebrow">RunStore · Move beyond</p>
+        <p class="eyebrow">RunStore</p>
         <h1>
           Trang bị tốt hơn.<br />
           <em>Chạy xa hơn.</em>
         </h1>
-        <p>
-          Từ buổi chạy đầu tiên đến vạch đích marathon — tìm đúng đôi giày,
-          trang phục và phụ kiện dành cho nhịp chạy của bạn.
-        </p>
+        <p>Giày, trang phục và phụ kiện cho mọi cung đường.</p>
         <div class="hero-actions">
           <RouterLink class="primary-action" to="/products">
             Mua ngay
@@ -324,18 +321,18 @@ onBeforeUnmount(() => {
           </RouterLink>
         </div>
         <dl class="home-hero__stats" aria-label="Thông tin cửa hàng">
-          <div><dt>{{ homePagination.totalItems || '20+' }}</dt><dd>Sản phẩm chọn lọc</dd></div>
-          <div><dt>{{ brandOptions.length }}</dt><dd>Thương hiệu chạy bộ</dd></div>
-          <div><dt>4</dt><dd>Nhóm trang bị</dd></div>
+          <div><dt>{{ homePagination.totalItems || '20+' }}</dt><dd>Sản phẩm</dd></div>
+          <div><dt>{{ brandOptions.length }}</dt><dd>Thương hiệu</dd></div>
+          <div><dt>4</dt><dd>Danh mục</dd></div>
         </dl>
       </div>
       <a class="home-scroll-cue" href="#home-intro" aria-label="Cuộn xuống khám phá">
-        <span>Scroll to run</span><i aria-hidden="true"></i>
+        <span>Khám phá</span><i aria-hidden="true"></i>
       </a>
     </section>
 
     <section class="home-brand-showcase" aria-labelledby="brand-showcase-title">
-      <p id="brand-showcase-title">Selected running brands</p>
+      <p id="brand-showcase-title">Thương hiệu</p>
       <div class="home-brand-grid">
         <button
           v-for="brand in brandOptions"
@@ -343,30 +340,27 @@ onBeforeUnmount(() => {
           type="button"
           :class="{ 'is-active': selectedBrand === brand.key }"
           :aria-pressed="selectedBrand === brand.key"
-          :aria-label="`Lọc ${brand.count} sản phẩm thương hiệu ${brand.label}`"
+          :aria-label="loading ? `Lọc thương hiệu ${brand.label}` : `Lọc ${brand.count} sản phẩm thương hiệu ${brand.label}`"
           @click="selectBrand(brand.key)"
         >
           <i aria-hidden="true">{{ brand.label.slice(0, 1) }}</i>
-          <span><strong>{{ brand.label }}</strong><small>{{ brand.count }} sản phẩm</small></span>
+          <span><strong>{{ brand.label }}</strong><small>{{ loading ? 'Đang tải' : `${brand.count} sản phẩm` }}</small></span>
           <b aria-hidden="true">→</b>
         </button>
       </div>
     </section>
 
     <section id="home-intro" class="section home-intro" data-reveal>
-      <p class="eyebrow">Find your rhythm</p>
+      <p class="eyebrow">Chạy đúng nhịp</p>
       <div class="home-intro__layout">
         <h2>Mỗi cung đường cần một bộ trang bị <em>đúng nhịp.</em></h2>
-        <p>
-          RunStore gom những lựa chọn thiết thực cho road, trail và race day
-          vào một trải nghiệm mua sắm gọn, rõ và đầy cảm hứng.
-        </p>
+        <p>Trang bị phù hợp cho road, trail và race day.</p>
       </div>
     </section>
 
     <section id="categories" class="section home-categories" data-reveal>
       <div class="section-heading">
-        <p class="eyebrow">01 · Chọn cung đường</p>
+        <p class="eyebrow">Danh mục</p>
         <h2>Trang bị cho từng chuyển động</h2>
       </div>
       <div class="category-grid">
@@ -380,7 +374,7 @@ onBeforeUnmount(() => {
             params: { slug: category.slug }
           }"
         >
-          <span>{{ category.count }} sản phẩm</span>
+          <span>{{ loading ? 'Đang tải' : `${category.count} sản phẩm` }}</span>
           <h3>{{ category.name }}</h3>
           <p>{{ category.description }}</p>
         </RouterLink>
@@ -391,8 +385,8 @@ onBeforeUnmount(() => {
 
     <section id="products" class="section product-section home-products" data-reveal>
       <div class="section-heading">
-        <p class="eyebrow">03 · Gear up</p>
-        <h2>Đang có mặt tại RunStore</h2>
+        <p class="eyebrow">Sản phẩm</p>
+        <h2>Sản phẩm nổi bật</h2>
         <div v-if="selectedBrand !== 'all'" class="home-products__active-filter" role="status">
           <span>Đang xem thương hiệu <strong>{{ selectedBrandLabel }}</strong></span>
           <button type="button" @click="clearBrand">Bỏ lọc ×</button>
@@ -430,7 +424,7 @@ onBeforeUnmount(() => {
           <ProductGrid
             :products="visibleProducts"
             empty-title="Chưa có sản phẩm"
-            empty-message="Danh mục này hiện chưa có sản phẩm đang hoạt động."
+            empty-message="Danh mục này chưa có sản phẩm."
             @add-to-cart="emit('add-to-cart', $event)"
           />
           <PaginationNav
@@ -461,7 +455,7 @@ onBeforeUnmount(() => {
     </section>
 
     <section class="section home-closing" data-reveal>
-      <p class="eyebrow">Your next run starts here</p>
+      <p class="eyebrow">Tiếp tục</p>
       <h2>Sẵn sàng cho cung đường tiếp theo?</h2>
       <RouterLink class="primary-action" to="/products">Bắt đầu khám phá</RouterLink>
     </section>

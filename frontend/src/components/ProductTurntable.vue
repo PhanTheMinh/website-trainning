@@ -52,13 +52,10 @@ function setProduct(index) {
   <section class="product-turntable" aria-labelledby="turntable-title">
     <div class="product-turntable__heading">
       <div>
-        <p class="eyebrow">02 · Best sellers 360°</p>
+        <p class="eyebrow">Bán chạy 360°</p>
         <h2 id="turntable-title">Xoay để nhìn.<br /><em>Chạm để sở hữu.</em></h2>
       </div>
-      <p>
-        Sản phẩm được dựng đứng như phòng chọn vật phẩm trong game. Kéo hoặc
-        vuốt trực tiếp để đổi góc nhìn, nhấn vào vật thể để xem chi tiết.
-      </p>
+      <p>Kéo hoặc vuốt để xoay sản phẩm.</p>
     </div>
 
     <div v-if="activeProduct" class="product-turntable__layout">
@@ -68,7 +65,7 @@ function setProduct(index) {
         <small>{{ formatCurrency(activeProduct.price) }}</small>
         <div>
           <i :class="{ 'is-ready': activeHasSpin }"></i>
-          {{ activeHasSpin ? '360° interactive · kéo để xoay' : 'Studio preview · 360° coming soon' }}
+          {{ activeHasSpin ? 'Kéo để xoay' : 'Xem sản phẩm' }}
         </div>
       </div>
 

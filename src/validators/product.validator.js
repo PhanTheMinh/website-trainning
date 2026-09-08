@@ -214,6 +214,33 @@ const updateVariantStockSchema = Joi.object({
         abortEarly: false,
         stripUnknown: false
     })
+
+const purchaseValidationSchema = Joi.object({
+    items: Joi.array()
+        .items(Joi.object({
+            product_id: Joi.number().integer().positive().required(),
+            variant_id: Joi.number().integer().positive().required(),
+            quantity: Joi.number().integer().min(1).max(10000).required()
+        }).options({ stripUnknown: false }))
+        .min(1)
+        .max(50)
+        .required()
+})
+    .options({
+        abortEarly: false,
+        stripUnknown: false
+    })
+    .messages({
+        'any.required': '{#label} is required',
+        'object.unknown': '{#label} is not allowed',
+        'array.min': '{#label} must contain at least one item',
+        'array.max': '{#label} must not contain more than {#limit} items',
+        'number.base': '{#label} must be a valid number',
+        'number.integer': '{#label} must be an integer',
+        'number.min': '{#label} must be at least {#limit}',
+        'number.max': '{#label} must not exceed {#limit}',
+        'number.positive': '{#label} must be greater than 0'
+    })
     .messages({
         'any.required': '{#label} is required',
         'object.unknown': '{#label} is not allowed',
@@ -325,6 +352,7 @@ module.exports = {
     listDeletedProductsQuerySchema,
     listOwnProductsQuerySchema,
     listProductsQuerySchema,
+    purchaseValidationSchema,
     updateProductSchema,
     updateVariantStockSchema
 }

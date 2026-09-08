@@ -13,6 +13,10 @@ const Product = sequelize.define(
             type: DataTypes.BIGINT,
             allowNull: false
         },
+        shop_id: {
+            type: DataTypes.BIGINT,
+            allowNull: false
+        },
         title: {
             type: DataTypes.STRING(180),
             allowNull: false

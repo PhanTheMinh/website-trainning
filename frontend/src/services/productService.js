@@ -4,8 +4,8 @@ export function createProduct(formData) {
   return apiClient.post('/api/products', formData)
 }
 
-export function getProduct(productId) {
-  return apiClient.get(`/api/products/${productId}`)
+export function getProduct(productId, options = {}) {
+  return apiClient.get(`/api/products/${productId}`, options)
 }
 
 export function getProducts(params = {}) {
@@ -19,6 +19,10 @@ export function getProducts(params = {}) {
 
   const suffix = query.size ? `?${query.toString()}` : ''
   return apiClient.get(`/api/products${suffix}`)
+}
+
+export function validatePurchase(items) {
+  return apiClient.post('/api/products/purchase-validation', { items })
 }
 
 export function getMyProducts(params = {}) {

@@ -3,9 +3,17 @@ import { API_BASE_URL } from '../services/apiClient.js'
 
 export function mapApiProduct(product, options = {}) {
   const category = getCategoryByValue(product.category)
-  const detailQuery = options.fromCategory
-    ? { fromCategory: options.fromCategory }
-    : undefined
+  const detailQuery = {
+    ...(options.fromCategory ? { fromCategory: options.fromCategory } : {}),
+    ...(options.fromShop ? { fromShop: options.fromShop } : {})
+  }
+  const shop = product.shop
+    ? {
+        ...product.shop,
+        identifier: product.shop.identifier ||
+          `${product.shop.id}-${product.shop.slug}`
+      }
+    : null
 
   const activeVariants = (product.variants || []).filter(
     (variant) => variant.status === 'active'
@@ -26,11 +34,13 @@ export function mapApiProduct(product, options = {}) {
         category: getCategoryName(product.category),
         categoryValue: product.category,
         price: defaultVariant.effective_price,
-        tag: 'Mới đăng',
+        tag: getCategoryName(product.category),
         color: category?.accent || '#0f766e',
         image_url: defaultVariant.image_url ||
           product.images[0]?.image_url ||
-          null
+          null,
+        shop_id: shop?.id || null,
+        shop
       }
     : null
 
@@ -47,7 +57,7 @@ export function mapApiProduct(product, options = {}) {
     soldCount: Number(product.sold_count ?? product.total_sold ?? 0),
     requiresSelection: Boolean((product.options || []).length),
     cartItem,
-    tag: 'Mới đăng',
+    tag: '',
     color: category?.accent || '#0f766e',
     imageFrames: (product.images || [])
       .filter((image) => image.image_url)
@@ -55,12 +65,19 @@ export function mapApiProduct(product, options = {}) {
     imageUrl: product.images[0]?.image_url
       ? new URL(product.images[0].image_url, API_BASE_URL).toString()
       : '',
+    shop,
+    shopRoute: shop
+      ? {
+          name: 'shop',
+          params: { identifier: shop.identifier }
+        }
+      : null,
     detailRoute: {
       name: 'product-detail',
       params: {
         id: product.id
       },
-      query: detailQuery
+      query: Object.keys(detailQuery).length ? detailQuery : undefined
     }
   }
 }
