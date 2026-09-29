@@ -1,6 +1,6 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { RouterView } from 'vue-router'
+import { RouterView, useRouter } from 'vue-router'
 import AuthPanel from './components/AuthPanel.vue'
 import SiteHeader from './components/SiteHeader.vue'
 import SiteFooter from './components/SiteFooter.vue'
@@ -9,15 +9,19 @@ import { getProfile } from './services/authService.js'
 import { validatePurchase } from './services/productService.js'
 import { isDefinitivePurchaseFailure } from './utils/purchaseAvailability.js'
 import { getPurchaseFailureMessage } from './utils/storefrontErrors.js'
+import { createCheckout } from './services/checkoutService.js'
 
 const currentUser = ref(null)
 const sessionLoading = ref(true)
 const showAuthPanel = ref(false)
 const cartItems = ref([])
+const preparingCheckout = ref(false)
+const router = useRouter()
 const cartNotice = ref('')
 const pendingCartAdds = new Set()
 let cartNoticeTimer
 const CART_STORAGE_KEY = 'runstore-cart-v1'
+let checkoutRequest = null
 
 function restoreCart() {
   try {
@@ -60,7 +64,7 @@ function handleLoggedOut() {
 
 async function addToCart(product) {
   if (!product?.variant_id || product.stock_quantity <= 0) {
-    showCartNotice('Sản phẩm hoặc phiên bản này hiện không thể mua.')
+    showCartNotice('This product or variant is not available for purchase.')
     return
   }
 
@@ -88,9 +92,9 @@ async function addToCart(product) {
       isDefinitivePurchaseFailure(error)
         ? getPurchaseFailureMessage(
             error,
-            'Sản phẩm vừa ngừng bán, hết hàng hoặc không còn đủ số lượng.'
+            'This product was unpublished, sold out or has insufficient stock.'
           )
-        : 'Chưa thể kiểm tra sản phẩm do kết nối không ổn định. Giỏ hàng chưa bị thay đổi.'
+        : 'Could not check the product due to an unstable connection. Your cart was not changed.'
     )
     return
   } finally {
@@ -98,7 +102,7 @@ async function addToCart(product) {
   }
 
   if (!validatedItem) {
-    showCartNotice('Không nhận được thông tin tồn kho mới nhất. Vui lòng thử lại.')
+    showCartNotice('Could not get the latest stock information. Please try again.')
     return
   }
 
@@ -116,25 +120,106 @@ function getCartKey(product) {
   return product.catalogKey || product.id
 }
 
-function removeFromCart(productKey) {
-  const itemIndex = cartItems.value.findIndex(
-    (product) => getCartKey(product) === productKey
-  )
-
-  if (itemIndex >= 0) {
-    cartItems.value.splice(itemIndex, 1)
-  }
-}
-
-function clearCart() {
-  cartItems.value = []
-}
-
-function removeUnavailableCartItems(productKeys) {
-  const unavailable = new Set(productKeys)
+function removeCartLine(productKey) {
   cartItems.value = cartItems.value.filter(
-    (product) => !unavailable.has(getCartKey(product))
+    (product) => getCartKey(product) !== productKey
   )
+}
+
+async function setCartQuantity({ key, quantity }) {
+  const target = Number(quantity)
+  if (!Number.isSafeInteger(target) || target < 1) return
+  const matching = cartItems.value.filter((item) => getCartKey(item) === key)
+  if (!matching.length || target === matching.length) return
+
+  if (target > matching.length) {
+    if (pendingCartAdds.has(key)) return
+    pendingCartAdds.add(key)
+    try {
+      const response = await validatePurchase([{
+        product_id: matching[0].product_id || matching[0].id,
+        variant_id: matching[0].variant_id,
+        quantity: target
+      }])
+      const current = cartItems.value.filter((item) => getCartKey(item) === key)
+      if (current.length !== matching.length) return
+      const validated = response.data.items[0]
+      const updated = {
+        ...matching[0],
+        stock_quantity: validated.stock_quantity,
+        price: validated.unit_price,
+        shop_id: validated.shop_id,
+        shop: validated.shop
+      }
+      cartItems.value.push(...Array.from({ length: target - matching.length }, () => ({ ...updated })))
+    } catch (error) {
+      showCartNotice(
+        isDefinitivePurchaseFailure(error)
+          ? getPurchaseFailureMessage(error, 'There is not enough stock for this product.')
+          : 'Could not check stock. The quantity in your cart was not changed.'
+      )
+    } finally {
+      pendingCartAdds.delete(key)
+    }
+    return
+  }
+
+  let toRemove = matching.length - target
+  cartItems.value = cartItems.value.filter((item) => {
+    if (getCartKey(item) !== key || toRemove === 0) return true
+    toRemove -= 1
+    return false
+  })
+}
+
+function refreshCartItem({ key, validated }) {
+  cartItems.value = cartItems.value.map((item) => getCartKey(item) === key
+    ? {
+        ...item,
+        stock_quantity: validated.stock_quantity,
+        price: validated.unit_price,
+        shop_id: validated.shop_id,
+        shop: validated.shop
+      }
+    : item
+  )
+}
+
+async function beginCheckout(keys) {
+  if (preparingCheckout.value || sessionLoading.value) return
+  if (!currentUser.value) { openAuthPanel(); return }
+  const selected = new Set(keys)
+  const grouped = new Map()
+  cartItems.value.forEach((item) => {
+    const key = getCartKey(item)
+    if (!selected.has(key)) return
+    const line = grouped.get(key)
+    if (line) line.quantity += 1
+    else grouped.set(key, { key, ...item, quantity: 1 })
+  })
+  const lines = [...grouped.values()]
+  if (!lines.length) return
+
+  preparingCheckout.value = true
+  try {
+    const userId = currentUser.value.id
+    const items = lines.map(item => ({ product_id: item.product_id || item.id,
+      variant_id: item.variant_id, quantity: item.quantity }))
+    const signature = JSON.stringify([userId, items])
+    if (checkoutRequest?.signature !== signature) checkoutRequest = { signature, id: crypto.randomUUID() }
+    const response = await createCheckout(items, checkoutRequest.id)
+    checkoutRequest = null
+    if (currentUser.value?.id !== userId) return
+    await router.push({ name: 'checkout', params: { checkoutToken: response.data.token } })
+  } catch (error) {
+    showCartNotice(
+      isDefinitivePurchaseFailure(error)
+        ? getPurchaseFailureMessage(error, 'An item is sold out or has insufficient stock.')
+        : 'Could not check the selected item. Please try again.'
+    )
+  } finally {
+    preparingCheckout.value = false
+  }
 }
 
 function removeProductsFromCart(productIds) {
@@ -194,7 +279,7 @@ onBeforeUnmount(() => {
       class="auth-modal"
       role="dialog"
       aria-modal="true"
-      aria-label="Đăng nhập và đăng ký"
+      aria-label="Sign in and sign up"
       @click.self="showAuthPanel = false"
     >
       <AuthPanel
@@ -214,7 +299,26 @@ onBeforeUnmount(() => {
         @user-updated="setCurrentUser"
       />
       <component
-        v-else-if="['my-products', 'product-edit', 'product-trash', 'my-shop'].includes(route.name)"
+        v-else-if="[
+          'my-products',
+          'product-edit',
+          'product-trash',
+          'my-shop',
+          'management',
+          'shipping-methods',
+          'shipping-method-list',
+          'shipping-method-create',
+          'shipping-countries',
+          'shipping-country-list',
+          'shipping-country-create',
+          'shipping-settings',
+          'shipping-setting-list',
+          'shipping-setting-create',
+          'shipping-setting-detail',
+          'payment-method-list',
+          'payment-method-create',
+          'payment-method-edit'
+        ].includes(route.name)"
         :is="Component"
         :current-user="currentUser"
         :session-loading="sessionLoading"
@@ -225,10 +329,18 @@ onBeforeUnmount(() => {
         v-else-if="route.name === 'cart'"
         :is="Component"
         :cart-items="cartItems"
-        @add-to-cart="addToCart"
-        @clear-cart="clearCart"
-        @remove-from-cart="removeFromCart"
-        @remove-unavailable="removeUnavailableCartItems"
+        :preparing-checkout="preparingCheckout"
+        @set-quantity="setCartQuantity"
+        @remove-line="removeCartLine"
+        @refresh-item="refreshCartItem"
+        @begin-checkout="beginCheckout"
+      />
+      <component
+        v-else-if="route.name === 'checkout'"
+        :is="Component"
+        :current-user="currentUser"
+        :session-loading="sessionLoading"
+        @open-auth="openAuthPanel"
       />
       <component
         v-else-if="route.name === 'product-create'"

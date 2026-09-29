@@ -66,7 +66,7 @@ function complexVariants(sku = `RUN-${testRun}-BLACK-39`) {
                 color: 'Đen',
                 size: '39'
             },
-            price: null,
+            price: 1250000,
             stock_quantity: 5,
             image_index: 0,
             status: 'active'
@@ -88,7 +88,7 @@ function complexVariants(sku = `RUN-${testRun}-BLACK-39`) {
                 color: 'Trắng',
                 size: '40'
             },
-            price: null,
+            price: 1250000,
             stock_quantity: 0,
             image_index: null,
             status: 'active'
@@ -211,6 +211,28 @@ describe('Product variant APIs', function () {
         expect(response.body.success).toBe(false)
     })
 
+    it('requires every variant to provide its own price', async function () {
+        const agent = await authenticatedAgent()
+        const response = await productRequest(agent, {
+            title: 'Variant without a separate price',
+            options: JSON.stringify([]),
+            variants: JSON.stringify([{
+                sku: '',
+                option_values: {},
+                price: null,
+                stock_quantity: 1,
+                image_index: null,
+                status: 'active'
+            }])
+        })
+
+        expect(response.status).toBe(400)
+        expect(response.body.message).toContain('price')
+        expect(await Product.count({
+            where: { title: 'Variant without a separate price' }
+        })).toBe(0)
+    })
+
     it('creates product, options, variants and per-variant stock atomically', async function () {
         const agent = await authenticatedAgent()
         const response = await productRequest(agent)
@@ -273,7 +295,7 @@ describe('Product variant APIs', function () {
             variants: JSON.stringify([{
                 sku: '',
                 option_values: {},
-                price: null,
+                price: 1250000,
                 stock_quantity: 20,
                 image_index: null,
                 status: 'active'
@@ -297,7 +319,7 @@ describe('Product variant APIs', function () {
             variants: JSON.stringify([{
                 sku: '',
                 option_values: {},
-                price: null,
+                price: 1250000,
                 stock_quantity: 0,
                 image_index: null,
                 status: 'active'
@@ -326,7 +348,7 @@ describe('Product variant APIs', function () {
             .field('variants', JSON.stringify([{
                 sku: '',
                 option_values: {},
-                price: null,
+                price: 900000,
                 stock_quantity: 1,
                 image_index: 0,
                 status: 'active'
@@ -358,7 +380,7 @@ describe('Product variant APIs', function () {
             .field('variants', JSON.stringify([{
                 sku: `VARIANT-IMAGES-${testRun}`,
                 option_values: {},
-                price: null,
+                price: 990000,
                 stock_quantity: 2,
                 image_index: null,
                 images: ['new:0', 'new:1'],
@@ -389,7 +411,7 @@ describe('Product variant APIs', function () {
             .field('variants', JSON.stringify([{
                 sku: product.variants[0].sku,
                 option_values: {},
-                price: null,
+                price: 990000,
                 stock_quantity: 3,
                 image_index: null,
                 images: [`existing:${retainedImage.id}`, 'new:0'],
@@ -429,7 +451,7 @@ describe('Product variant APIs', function () {
             .field('variants', JSON.stringify([{
                 sku: '',
                 option_values: {},
-                price: null,
+                price: 900000,
                 stock_quantity: 1,
                 image_index: 0,
                 status: 'active'
@@ -517,7 +539,7 @@ describe('Product variant APIs', function () {
             variants: JSON.stringify([{
                 sku: `run ${testRun} black 39`,
                 option_values: {},
-                price: null,
+                price: 1250000,
                 stock_quantity: 1,
                 image_index: null,
                 status: 'active'
@@ -700,7 +722,7 @@ describe('Product variant APIs', function () {
             .field('variants', JSON.stringify([{
                 sku: '',
                 option_values: {},
-                price: null,
+                price: 600000,
                 stock_quantity: 4,
                 image_index: null,
                 status: 'active'

@@ -81,17 +81,17 @@ const shopIsClosed = computed(
 )
 
 const stoppedStateTitle = computed(() =>
-  shopIsClosed.value ? 'Shop tạm đóng' : 'Ngừng bán'
+  shopIsClosed.value ? 'Shop temporarily closed' : 'Inactive'
 )
 
 const stoppedStateMessage = computed(() =>
   shopIsClosed.value
-    ? 'Shop hiện tạm đóng nên sản phẩm chưa thể mua.'
-    : 'Sản phẩm này hiện không còn được bán.'
+    ? 'This shop is temporarily closed, so this product is not available.'
+    : 'This product is no longer for sale.'
 )
 
 const stoppedButtonLabel = computed(() =>
-  shopIsClosed.value ? 'Shop đang tạm đóng' : 'Sản phẩm đã ngừng bán'
+  shopIsClosed.value ? 'Shop is temporarily closed' : 'Product is no longer for sale'
 )
 
 const isProductForSale = computed(
@@ -108,8 +108,8 @@ const galleryImages = computed(() =>
 const galleryLabel = computed(() => {
   const color = selectedOptionValues.value.color
   return color && galleryImages.value.some((image) => image.source === 'variant')
-    ? `Ảnh phiên bản màu ${color}`
-    : 'Ảnh tổng quan sản phẩm'
+    ? `Image of the color variant ${color}`
+    : 'Product overview image'
 })
 
 const mainImageUrl = computed(
@@ -353,7 +353,7 @@ async function addProductToCart() {
     }
 
     if (freshAvailability === PRODUCT_AVAILABILITY.OUT_OF_STOCK) {
-      availabilityError.value = 'Sản phẩm hiện đã hết hàng.'
+      availabilityError.value = 'This product is sold out.'
       return
     }
 
@@ -362,7 +362,7 @@ async function addProductToCart() {
     )
 
     if (!variant || variant.status !== 'active' || variant.stock_quantity <= 0) {
-      availabilityError.value = 'Phiên bản này đã ngừng bán hoặc không còn hàng.'
+      availabilityError.value = 'This variant is no longer for sale or is sold out.'
       return
     }
 
@@ -400,7 +400,7 @@ async function addProductToCart() {
     } else {
       availabilityError.value = getPurchaseFailureMessage(
         error,
-        'Chưa thể kiểm tra trạng thái sản phẩm. Vui lòng thử lại.'
+        'Could not check product status. Please try again.'
       )
     }
   } finally {
@@ -445,7 +445,7 @@ async function revalidateProductAvailability() {
       selectedOptionValues.value = {}
       loadError.value = getProductLoadError(error)
     } else {
-      availabilityError.value = 'Chưa thể cập nhật trạng thái sản phẩm. Vui lòng thử lại.'
+      availabilityError.value = 'Could not update product status. Please try again.'
     }
   } finally {
     if (availabilityController === controller) {
@@ -490,7 +490,7 @@ onBeforeUnmount(() => {
   <main class="product-detail-page">
     <section class="section">
       <RouterLink class="profile-back" :to="backRoute">
-        ← {{ sourceShop ? `Quay lại ${sourceShop.name}` : sourceCategory ? `Quay lại ${sourceCategory.name}` : 'Quay lại sản phẩm' }}
+        ← {{ sourceShop ? `Back to ${sourceShop.name}` : sourceCategory ? `Back to ${sourceCategory.name}` : 'Back to products' }}
       </RouterLink>
 
       <p
@@ -498,17 +498,17 @@ onBeforeUnmount(() => {
         class="account-notice account-notice--success product-created-notice"
         role="status"
       >
-        Sản phẩm và các phiên bản đã được tạo thành công.
+        Product and variants created successfully.
       </p>
 
       <div v-if="loading" class="profile-empty">
-        <h3>Đang tải sản phẩm...</h3>
+        <h3>Loading product...</h3>
       </div>
 
       <div v-else-if="loadError" class="profile-empty">
-        <h3>Không thể tải sản phẩm</h3>
+        <h3>Could not load product</h3>
         <p>{{ loadError }}</p>
-        <RouterLink to="/products">Xem danh sách sản phẩm</RouterLink>
+        <RouterLink to="/products">View product list</RouterLink>
       </div>
 
       <article v-else-if="product" class="product-detail-layout">
@@ -523,7 +523,7 @@ onBeforeUnmount(() => {
               :alt="`${product.title} — ${galleryLabel}`"
             />
             <div v-else class="product-detail-image-empty">
-              Sản phẩm đang được cập nhật hình ảnh
+              Product images are being updated
             </div>
           </div>
           <div
@@ -535,11 +535,11 @@ onBeforeUnmount(() => {
               :key="`${image.source}-${image.id || image.image_url}`"
               type="button"
               :class="{ active: mainImageUrl === image.absoluteUrl }"
-              :aria-label="`Xem ảnh ${index + 1} của ${galleryLabel.toLowerCase()}`"
+              :aria-label="`View image ${index + 1} of ${galleryLabel.toLowerCase()}`"
               :aria-pressed="mainImageUrl === image.absoluteUrl"
               @click="selectedImageUrl = image.absoluteUrl"
             >
-              <img :src="image.absoluteUrl" :alt="`${product.title}, ảnh ${index + 1}`" />
+              <img :src="image.absoluteUrl" :alt="`${product.title}, image ${index + 1}`" />
             </button>
           </div>
         </div>
@@ -563,8 +563,8 @@ onBeforeUnmount(() => {
             class="product-sale-state product-sale-state--out-of-stock"
             role="status"
           >
-            <span>Hết hàng</span>
-            <p>Sản phẩm hiện đã hết hàng.</p>
+            <span>Sold out</span>
+            <p>This product is sold out.</p>
           </div>
           <strong class="product-detail-price">
             {{ formatCurrency(displayPrice) }}
@@ -578,7 +578,7 @@ onBeforeUnmount(() => {
               {{ product.shop.name.charAt(0).toUpperCase() }}
             </span>
             <span>
-              <small>Bán bởi</small>
+              <small>Sold by</small>
               <strong>{{ product.shop.name }}</strong>
             </span>
             <b>Xem shop →</b>
@@ -590,7 +590,7 @@ onBeforeUnmount(() => {
             v-if="product.options.length"
             class="product-option-selector"
             :class="{ 'is-disabled': !isProductForSale }"
-            aria-label="Chọn phiên bản sản phẩm"
+            aria-label="Select product variant"
           >
             <fieldset
               v-for="option in product.options"
@@ -614,7 +614,7 @@ onBeforeUnmount(() => {
                   <small
                     v-if="isOptionValueOutOfStock(option.code, optionValue.value)"
                   >
-                    Hết hàng
+                    Sold out
                   </small>
                 </button>
               </div>
@@ -623,18 +623,18 @@ onBeforeUnmount(() => {
 
           <dl class="product-detail-facts">
             <div v-if="isProductForSale">
-              <dt>Tồn kho</dt>
+              <dt>Stock</dt>
               <dd v-if="needsVariantSelection">
-                Chọn đủ tùy chọn để xem tồn kho
+                Select all options to see availability
               </dd>
-              <dd v-else>{{ displayStock }} sản phẩm</dd>
+              <dd v-else>{{ displayStock }} products</dd>
             </div>
             <div v-if="selectedVariant">
               <dt>SKU</dt>
               <dd>{{ selectedVariant.sku }}</dd>
             </div>
             <div v-if="product.weight_grams">
-              <dt>Cân nặng</dt>
+              <dt>Weight</dt>
               <dd>{{ product.weight_grams }} gram</dd>
             </div>
           </dl>
@@ -646,13 +646,13 @@ onBeforeUnmount(() => {
             :aria-busy="addingToCart"
             @click="addProductToCart"
           >
-            <template v-if="addingToCart">Đang kiểm tra...</template>
+            <template v-if="addingToCart">Checking...</template>
             <template v-else-if="!isProductForSale">{{ stoppedButtonLabel }}</template>
-            <template v-else-if="productIsOutOfStock">Hết hàng</template>
-            <template v-else-if="needsVariantSelection">Chọn đầy đủ tùy chọn</template>
-            <template v-else-if="canAddToCart">Thêm phiên bản này vào giỏ</template>
-            <template v-else-if="selectedVariant?.stock_quantity <= 0">Đã hết hàng</template>
-            <template v-else>Đã đạt số lượng tồn kho</template>
+            <template v-else-if="productIsOutOfStock">Sold out</template>
+            <template v-else-if="needsVariantSelection">Select all options</template>
+            <template v-else-if="canAddToCart">Add this variant to cart</template>
+            <template v-else-if="selectedVariant?.stock_quantity <= 0">Sold out</template>
+            <template v-else>Maximum available quantity reached</template>
           </button>
           <p v-if="availabilityError" class="account-notice account-notice--error" role="alert">
             {{ availabilityError }}

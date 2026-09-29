@@ -56,7 +56,7 @@ Table products [note: 'ĐÃ ÁP DỤNG: thông tin chung của sản phẩm; t�
   description text [not null, note: 'ĐÃ XÁC NHẬN TỪ CODE.']
   category varchar(100) [not null, note: 'ĐÃ XÁC NHẬN TỪ CODE: slug danh mục từ danh sách chuẩn dùng chung.']
   brand varchar(100) [note: 'ĐÃ ÁP DỤNG: thương hiệu dạng text, có thể null.']
-  price decimal(12,2) [not null, note: 'ĐÃ XÁC NHẬN TỪ CODE: giá cơ sở/giá hiển thị; variant có thể ghi đè.']
+  price decimal(12,2) [not null, note: 'Giá tham chiếu của sản phẩm; giá bán thực tế được lưu riêng trên từng variant.']
   stock int [not null, default: 0, note: 'LEGACY: giữ để tương thích dữ liệu cũ, code mới không dùng làm nguồn tồn kho.']
   weight_grams int [note: 'ĐÃ XÁC NHẬN TỪ CODE: MySQL INT UNSIGNED; trọng lượng mặc định tính bằng gram.']
   sizes json [note: 'ĐÃ XÁC NHẬN TỪ CODE: cột tương thích tạm thời; tổ hợp chuẩn nằm ở variants.']
@@ -117,7 +117,7 @@ Table product_variants [note: 'ĐÃ ÁP DỤNG: mỗi hàng hóa/tổ hợp th�
   product_id bigint [not null]
   sku varchar(64) [not null, note: 'Unique toàn hệ thống; backend tự sinh nếu client để trống.']
   variant_key varchar(255) [not null, note: 'Khóa tổ hợp từ option value ids đã sắp xếp; default nếu không có option.']
-  price decimal(12,2) [note: 'Giá ghi đè; null thì dùng products.price.']
+  price decimal(12,2) [not null, note: 'Giá bán riêng bắt buộc của variant; không kế thừa products.price.']
   image_url varchar(255) [note: 'LEGACY/COMPATIBILITY: phản chiếu ảnh variant đầu tiên; thư viện chuẩn nằm ở product_variant_images.']
   stock_quantity int [not null, default: 0, note: 'MySQL INT UNSIGNED; nguồn tồn kho chuẩn.']
   status varchar(20) [not null, default: 'active']
@@ -155,6 +155,64 @@ Table product_variant_values [note: 'ĐÃ ÁP DỤNG: bảng nối một variant
   }
 }
 
+Table shipping_methods [note: 'ĐÃ ÁP DỤNG: các hình thức giao hàng riêng của từng shop.'] {
+  id bigint [pk, increment]
+  shop_id bigint [not null]
+  name varchar(100) [not null]
+  code varchar(50) [not null, note: 'Mã ổn định được tự sinh từ tên phương thức.']
+  description varchar(255)
+  status varchar(20) [not null, default: 'active']
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    (shop_id, name) [unique, name: 'shipping_methods_shop_name_unique']
+    (shop_id, code) [unique, name: 'shipping_methods_shop_code_unique']
+    (shop_id, status) [name: 'shipping_methods_shop_status']
+  }
+}
+
+Table countries [note: 'ĐÃ ÁP DỤNG: danh mục quốc gia vận chuyển riêng của từng shop.'] {
+  id bigint [pk, increment]
+  shop_id bigint [not null]
+  name varchar(100) [not null]
+  country_code varchar(2) [not null, note: 'Mã ISO alpha-2, ví dụ VN, US, GB.']
+  phone_code varchar(8) [not null, note: 'Đầu số có dấu +, ví dụ +84.']
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    (shop_id, country_code) [unique, name: 'countries_shop_country_code_unique']
+    (shop_id, name) [unique, name: 'countries_shop_name_unique']
+  }
+}
+
+Table shipping_rates [note: 'ĐÃ ÁP DỤNG: thời gian dự kiến và phí cố định cho một phương thức vận chuyển.'] {
+  id bigint [pk, increment]
+  shipping_method_id bigint [not null]
+  min_delivery_days int [not null]
+  max_delivery_days int [not null]
+  fixed_fee decimal(12,2) [not null]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    shipping_method_id [name: 'shipping_rates_shipping_method']
+  }
+}
+
+Table shipping_rate_countries [note: 'ĐÃ ÁP DỤNG: quan hệ N-N giữa quốc gia và mức phí vận chuyển.'] {
+  shipping_rate_id bigint [not null]
+  country_id bigint [not null]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    (shipping_rate_id, country_id) [pk, name: 'shipping_rate_countries_primary']
+    country_id [name: 'shipping_rate_countries_country']
+  }
+}
+
 Ref products_owner_fk: products.owner_id > users.id [delete: cascade, update: cascade]
 Ref product_images_product_fk: product_images.product_id > products.id [delete: cascade, update: cascade]
 Ref product_options_product_fk: product_options.product_id > products.id [delete: cascade, update: cascade]
@@ -163,3 +221,8 @@ Ref product_variants_product_fk: product_variants.product_id > products.id [dele
 Ref product_variant_images_variant_fk: product_variant_images.product_variant_id > product_variants.id [delete: cascade, update: cascade]
 Ref product_variant_values_variant_fk: product_variant_values.product_variant_id > product_variants.id [delete: cascade, update: cascade]
 Ref product_variant_values_option_value_fk: product_variant_values.product_option_value_id > product_option_values.id [delete: cascade, update: cascade]
+Ref shipping_methods_shop_fk: shipping_methods.shop_id > shops.id [delete: cascade, update: cascade]
+Ref countries_shop_fk: countries.shop_id > shops.id [delete: cascade, update: cascade]
+Ref shipping_rates_method_fk: shipping_rates.shipping_method_id > shipping_methods.id [delete: cascade, update: cascade]
+Ref shipping_rate_countries_rate_fk: shipping_rate_countries.shipping_rate_id > shipping_rates.id [delete: cascade, update: cascade]
+Ref shipping_rate_countries_country_fk: shipping_rate_countries.country_id > countries.id [delete: restrict, update: cascade]

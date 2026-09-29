@@ -89,18 +89,18 @@ let statusDialogTrigger
 const bulkStatusOptions = Object.freeze([
   {
     value: 'active',
-    label: 'Đang bán',
-    description: 'Khách hàng có thể tìm thấy sản phẩm và mua các phiên bản còn hàng.'
+    label: 'Active',
+    description: 'Customers can find this product and buy in-stock variants.'
   },
   {
     value: 'unactive',
-    label: 'Ngừng bán',
-    description: 'Ẩn sản phẩm khỏi cửa hàng; giữ nguyên ảnh, phiên bản và tồn kho.'
+    label: 'Inactive',
+    description: 'Hide the product from the store while keeping images, variants and stock.'
   },
   {
     value: 'draft',
-    label: 'Bản nháp',
-    description: 'Chỉ hiển thị trong danh sách quản lý của bạn cho đến khi chuyển sang Đang bán.'
+    label: 'Draft',
+    description: 'Only shown in your management list until you set it to Active.'
   }
 ])
 
@@ -183,11 +183,11 @@ const selectedCategory = computed(() => categories.value.find(
 ))
 const selectedStatusLabel = computed(() => statusLabel(routeState.value.status))
 const selectedSortLabel = computed(() => ({
-  name_asc: 'Tên A → Z',
-  name_desc: 'Tên Z → A',
-  price_asc: 'Giá thấp → cao',
-  price_desc: 'Giá cao → thấp',
-  category_asc: 'Nhóm theo danh mục'
+  name_asc: 'Name A → Z',
+  name_desc: 'Name Z → A',
+  price_asc: 'Price low → high',
+  price_desc: 'Price high → low',
+  category_asc: 'Group by category'
 })[routeState.value.sort] || '')
 const priceRangeError = computed(() => {
   const minimum = Number(minPrice.value)
@@ -196,7 +196,7 @@ const priceRangeError = computed(() => {
   return minPrice.value && maxPrice.value && minimum > maximum
 })
 const productCountLabel = computed(() =>
-  `${pagination.value.totalItems} sản phẩm`
+  `${pagination.value.totalItems} products`
 )
 const categorySuggestions = computed(() => {
   const query = normalizeSearchText(draftSearch.value)
@@ -219,7 +219,7 @@ const groupedRows = computed(() => items.value.map((product, index) => {
 
   return {
     product,
-    groupName: product.category?.name || 'Chưa phân loại',
+    groupName: product.category?.name || 'Uncategorized',
     showGroupHeading: selectedSort.value === 'category_asc' &&
       (index === 0 || categoryKey !== previousCategoryKey)
   }
@@ -585,10 +585,10 @@ async function confirmStatusUpdate() {
     operationNotice.value = {
       type: 'success',
       message: updatedCount
-        ? `Đã cập nhật trạng thái cho ${updatedCount} sản phẩm.${matchedCount > updatedCount
-          ? ` ${matchedCount - updatedCount} sản phẩm đã ở trạng thái này.`
+        ? `Updated status for ${updatedCount} products.${matchedCount > updatedCount
+          ? ` ${matchedCount - updatedCount} products already have this status.`
           : ''}`
-        : 'Không có sản phẩm nào cần thay đổi trạng thái.'
+        : 'No products need a status change.'
     }
     if (pendingStatus.value !== 'active') {
       emit('products-unavailable', products.map((product) => product.id))
@@ -600,8 +600,8 @@ async function confirmStatusUpdate() {
     restoreScroll(scrollTop)
   } catch (requestError) {
     statusUpdateError.value = requestError.status === 401
-      ? 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'
-      : requestError.message || 'Không thể cập nhật trạng thái sản phẩm.'
+      ? 'Your session has expired. Please sign in again.'
+      : requestError.message || 'Could not update product status.'
   } finally {
     updatingStatus.value = false
   }
@@ -698,8 +698,8 @@ async function confirmDelete() {
     operationNotice.value = {
       type: 'success',
       message: deletedCount === 1
-        ? `Đã chuyển “${products[0].title}” vào Thùng rác.`
-        : `Đã chuyển ${deletedCount} sản phẩm vào Thùng rác.`
+        ? `Moved “${products[0].title}” to trash.`
+        : `Moved ${deletedCount} products to trash.`
     }
     deleteDialog.value = null
     clearSelection()
@@ -713,7 +713,7 @@ async function confirmDelete() {
     restoreScroll(scrollTop)
   } catch (requestError) {
     deleteError.value = requestError.message ||
-      'Không thể xóa sản phẩm. Vui lòng thử lại.'
+      'Could not delete product. Please try again.'
   } finally {
     deleting.value = false
   }
@@ -732,7 +732,7 @@ async function loadCategories(force = false) {
     categories.value = response.data
     categoriesLoaded = true
   } catch {
-    categoriesError.value = 'Không thể tải danh mục. Vui lòng thử lại.'
+    categoriesError.value = 'Could not load categories. Please try again.'
   } finally {
     categoriesLoading.value = false
   }
@@ -769,8 +769,8 @@ async function loadProducts(state = routeState.value) {
     }
 
     error.value = requestError.status === 401
-      ? 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'
-      : requestError.message || 'Không thể tải sản phẩm. Vui lòng thử lại.'
+      ? 'Your session has expired. Please sign in again.'
+      : requestError.message || 'Could not load products. Please try again.'
   } finally {
     if (currentRequest === requestSequence) {
       loading.value = false
@@ -996,9 +996,9 @@ function formatUpdatedAt(value) {
 
 function statusLabel(status) {
   const labels = {
-    active: 'Đang bán',
-    unactive: 'Ngừng bán',
-    draft: 'Bản nháp'
+    active: 'Active',
+    unactive: 'Inactive',
+    draft: 'Draft'
   }
 
   return labels[status] || status
@@ -1056,16 +1056,13 @@ onMounted(() => {
   <main class="profile-page my-products-page">
     <section class="section profile-section my-products-section">
       <div v-if="sessionLoading" class="profile-empty">
-        <h3>Đang kiểm tra phiên đăng nhập...</h3>
+        <h3>Checking session...</h3>
       </div>
 
       <div v-else-if="currentUser" class="my-products-shell">
         <header class="my-products-page-heading">
-          <div>
-            <p class="account-card__eyebrow">Khu vực người bán</p>
-            <h1>Quản lý sản phẩm</h1>
-          </div>
-          <RouterLink :to="{ name: 'my-shop' }">Shop của tôi</RouterLink>
+          <h1>Manage products</h1>
+          <RouterLink :to="{ name: 'my-shop' }">My shop</RouterLink>
         </header>
 
         <p
@@ -1073,7 +1070,7 @@ onMounted(() => {
           class="account-notice account-notice--success my-products-created-notice"
           role="status"
         >
-          Sản phẩm đã được đăng và đã xuất hiện trong danh sách của bạn.
+          Product published and added to your list.
         </p>
 
         <p
@@ -1081,7 +1078,7 @@ onMounted(() => {
           class="account-notice account-notice--success my-products-created-notice"
           role="status"
         >
-          Thay đổi sản phẩm đã được lưu an toàn.
+          Product changes saved.
         </p>
 
         <p
@@ -1093,19 +1090,19 @@ onMounted(() => {
           {{ operationNotice.message }}
         </p>
 
-        <section class="my-products-toolbar" aria-label="Bộ lọc sản phẩm">
+        <section class="my-products-toolbar" aria-label="Product filters">
           <form class="my-products-filterbar" @submit.prevent="submitSearch">
             <div
               class="my-products-control my-products-search"
               @focusout="handleSearchFocusOut"
             >
-              <label for="my-products-search">Tìm theo tên sản phẩm</label>
+              <label for="my-products-search">Search by product name</label>
               <div class="my-products-search__field">
                 <input
                   id="my-products-search"
                   v-model="draftSearch"
                   autocomplete="off"
-                  placeholder="Ví dụ: giày chạy bộ"
+                  placeholder="Example: running shoes"
                   type="search"
                   :aria-expanded="visibleSuggestions"
                   :aria-activedescendant="activeSuggestionIndex >= 0
@@ -1120,7 +1117,7 @@ onMounted(() => {
                   class="my-products-search__submit"
                   type="submit"
                   :disabled="loading"
-                  :aria-label="loading ? 'Đang tìm kiếm' : 'Tìm kiếm sản phẩm'"
+                  :aria-label="loading ? 'Searching' : 'Search products'"
                 >
                   <span class="my-products-search__icon" aria-hidden="true"></span>
                 </button>
@@ -1131,10 +1128,10 @@ onMounted(() => {
                 id="category-suggestions"
                 class="category-suggestions"
                 role="listbox"
-                aria-label="Gợi ý bộ lọc danh mục"
+                aria-label="Category filter suggestions"
               >
                 <li class="category-suggestions__label">
-                  Danh mục phù hợp · chọn để lọc
+                  Matching categories · select to filter
                 </li>
                 <li
                   v-for="(category, index) in categorySuggestions"
@@ -1150,7 +1147,7 @@ onMounted(() => {
                     @click="applyCategorySuggestion(category)"
                   >
                     <span>{{ category.name }}</span>
-                    <small>Áp dụng bộ lọc</small>
+                    <small>Apply filter</small>
                   </button>
                 </li>
               </ul>
@@ -1166,7 +1163,7 @@ onMounted(() => {
                 aria-controls="my-products-filter-menu"
                 @click="toggleFilterMenu"
               >
-                <span>Sắp xếp &amp; lọc</span>
+                <span>Sort &amp; filter</span>
                 <strong v-if="appliedMenuFilterCount">{{ appliedMenuFilterCount }}</strong>
                 <i aria-hidden="true"></i>
               </button>
@@ -1184,7 +1181,7 @@ onMounted(() => {
                     :aria-expanded="activeFilterSection === 'category'"
                     @click="toggleFilterSection('category')"
                   >
-                    <span><b>Danh mục</b><small>{{ selectedCategory?.name || 'Tất cả danh mục' }}</small></span>
+                    <span><b>Category</b><small>{{ selectedCategory?.name || 'All categories' }}</small></span>
                     <i aria-hidden="true"></i>
                   </button>
                   <div v-if="activeFilterSection === 'category'" class="my-products-filter-options">
@@ -1192,7 +1189,7 @@ onMounted(() => {
                       type="button"
                       :class="{ active: !selectedCategoryId }"
                       @click="applyCategoryFilter('')"
-                    >Tất cả danh mục</button>
+                    >All categories</button>
                     <button
                       v-for="category in categories"
                       :key="category.id"
@@ -1209,24 +1206,24 @@ onMounted(() => {
                     :aria-expanded="activeFilterSection === 'status'"
                     @click="toggleFilterSection('status')"
                   >
-                    <span><b>Trạng thái</b><small>{{ selectedStatusLabel || 'Tất cả trạng thái' }}</small></span>
+                    <span><b>Status</b><small>{{ selectedStatusLabel || 'All statuses' }}</small></span>
                     <i aria-hidden="true"></i>
                   </button>
                   <div v-if="activeFilterSection === 'status'" class="my-products-filter-options">
-                    <button type="button" :class="{ active: !selectedStatus }" @click="applyStatusFilter('')">Tất cả trạng thái</button>
-                    <button type="button" :class="{ active: selectedStatus === 'active' }" @click="applyStatusFilter('active')">Đang bán</button>
-                    <button type="button" :class="{ active: selectedStatus === 'unactive' }" @click="applyStatusFilter('unactive')">Ngừng bán</button>
-                    <button type="button" :class="{ active: selectedStatus === 'draft' }" @click="applyStatusFilter('draft')">Bản nháp</button>
+                    <button type="button" :class="{ active: !selectedStatus }" @click="applyStatusFilter('')">All statuses</button>
+                    <button type="button" :class="{ active: selectedStatus === 'active' }" @click="applyStatusFilter('active')">Active</button>
+                    <button type="button" :class="{ active: selectedStatus === 'unactive' }" @click="applyStatusFilter('unactive')">Inactive</button>
+                    <button type="button" :class="{ active: selectedStatus === 'draft' }" @click="applyStatusFilter('draft')">Draft</button>
                   </div>
                 </section>
 
                 <button class="my-products-filter-price" type="button" @click="openPriceDialog">
                   <span>
-                    <b>Khoảng giá</b>
+                    <b>Price range</b>
                     <small v-if="routeState.minPrice || routeState.maxPrice">
-                      {{ routeState.minPrice || '0' }} – {{ routeState.maxPrice || 'Không giới hạn' }} ₫
+                      {{ routeState.minPrice || '0' }} – {{ routeState.maxPrice || 'No limit' }} ₫
                     </small>
-                    <small v-else>Chọn mức giá</small>
+                    <small v-else>Choose price range</small>
                   </span>
                   <i aria-hidden="true"></i>
                 </button>
@@ -1237,15 +1234,15 @@ onMounted(() => {
                     :aria-expanded="activeFilterSection === 'sort'"
                     @click="toggleFilterSection('sort')"
                   >
-                    <span><b>Thứ tự hiển thị</b><small>{{ selectedSortLabel }}</small></span>
+                    <span><b>Display order</b><small>{{ selectedSortLabel }}</small></span>
                     <i aria-hidden="true"></i>
                   </button>
                   <div v-if="activeFilterSection === 'sort'" class="my-products-filter-options">
-                    <button type="button" :class="{ active: selectedSort === 'name_asc' }" @click="applySortOption('name_asc')">Tên: A → Z</button>
-                    <button type="button" :class="{ active: selectedSort === 'name_desc' }" @click="applySortOption('name_desc')">Tên: Z → A</button>
-                    <button type="button" :class="{ active: selectedSort === 'price_asc' }" @click="applySortOption('price_asc')">Giá: thấp → cao</button>
-                    <button type="button" :class="{ active: selectedSort === 'price_desc' }" @click="applySortOption('price_desc')">Giá: cao → thấp</button>
-                    <button type="button" :class="{ active: selectedSort === 'category_asc' }" @click="applySortOption('category_asc')">Nhóm theo danh mục</button>
+                    <button type="button" :class="{ active: selectedSort === 'name_asc' }" @click="applySortOption('name_asc')">Name: A → Z</button>
+                    <button type="button" :class="{ active: selectedSort === 'name_desc' }" @click="applySortOption('name_desc')">Name: Z → A</button>
+                    <button type="button" :class="{ active: selectedSort === 'price_asc' }" @click="applySortOption('price_asc')">Price: low → high</button>
+                    <button type="button" :class="{ active: selectedSort === 'price_desc' }" @click="applySortOption('price_desc')">Price: high → low</button>
+                    <button type="button" :class="{ active: selectedSort === 'category_asc' }" @click="applySortOption('category_asc')">Group by category</button>
                   </div>
                 </section>
 
@@ -1254,7 +1251,7 @@ onMounted(() => {
                   class="my-products-filter-reset"
                   type="button"
                   @click="clearFilters"
-                >Đặt lại bộ lọc</button>
+                >Reset filters</button>
               </div>
             </div>
           </form>
@@ -1262,18 +1259,18 @@ onMounted(() => {
           <div
             v-if="hasActiveFilters"
             class="my-products-filter-chips"
-            aria-label="Bộ lọc đang áp dụng"
+            aria-label="Active filters"
           >
-            <span class="my-products-filter-chips__label">Đang áp dụng</span>
+            <span class="my-products-filter-chips__label">Active filters</span>
             <button
               v-if="appliedSearch"
               type="button"
               :disabled="loading"
               @click="clearAppliedSearch"
             >
-              Từ khóa: “{{ appliedSearch }}”
+              Search term: “{{ appliedSearch }}”
               <span aria-hidden="true">×</span>
-              <span class="sr-only">Xóa từ khóa tìm kiếm</span>
+              <span class="sr-only">Remove search term</span>
             </button>
             <button
               v-if="selectedCategory"
@@ -1283,7 +1280,7 @@ onMounted(() => {
             >
               {{ selectedCategory.name }}
               <span aria-hidden="true">×</span>
-              <span class="sr-only">Xóa bộ lọc danh mục</span>
+              <span class="sr-only">Remove category filter</span>
             </button>
             <button
               v-if="routeState.status"
@@ -1293,7 +1290,7 @@ onMounted(() => {
             >
               {{ selectedStatusLabel }}
               <span aria-hidden="true">×</span>
-              <span class="sr-only">Xóa bộ lọc trạng thái</span>
+              <span class="sr-only">Remove status filter</span>
             </button>
             <button
               v-if="routeState.minPrice || routeState.maxPrice"
@@ -1301,9 +1298,9 @@ onMounted(() => {
               :disabled="loading"
               @click="clearPriceFilter"
             >
-              Giá: {{ routeState.minPrice || '0' }} – {{ routeState.maxPrice || '∞' }} ₫
+              Price: {{ routeState.minPrice || '0' }} – {{ routeState.maxPrice || '∞' }} ₫
               <span aria-hidden="true">×</span>
-              <span class="sr-only">Xóa bộ lọc giá</span>
+              <span class="sr-only">Remove price filter</span>
             </button>
             <button
               v-if="routeState.sort !== DEFAULT_SORT"
@@ -1313,14 +1310,14 @@ onMounted(() => {
             >
               {{ selectedSortLabel }}
               <span aria-hidden="true">×</span>
-              <span class="sr-only">Đặt lại thứ tự sản phẩm</span>
+              <span class="sr-only">Reset product sort order</span>
             </button>
             <button
               class="my-products-filter-chips__clear"
               type="button"
               :disabled="loading"
               @click="clearFilters"
-            >Xóa tất cả</button>
+            >Clear all</button>
           </div>
 
           <div
@@ -1329,7 +1326,7 @@ onMounted(() => {
             role="alert"
           >
             <span>{{ categoriesError }}</span>
-            <button type="button" @click="loadCategories(true)">Thử lại</button>
+            <button type="button" @click="loadCategories(true)">Try again</button>
           </div>
         </section>
 
@@ -1341,7 +1338,6 @@ onMounted(() => {
         >
           <div class="my-products-results__heading">
             <div>
-              <p class="account-card__eyebrow">Danh sách của bạn</p>
               <h2 id="product-results-title" aria-live="polite">
                 {{ productCountLabel }}
               </h2>
@@ -1349,26 +1345,26 @@ onMounted(() => {
             <div class="my-products-results__header-actions">
               <div class="my-products-results__meta">
                 <p v-if="appliedSearch">
-                  Kết quả cho “{{ appliedSearch }}”
+                  Results for “{{ appliedSearch }}”
                 </p>
                 <span v-if="isRefreshing" class="my-products-refresh-badge" role="status">
                   <i aria-hidden="true"></i>
-                  Đang cập nhật
+                  Updating
                 </span>
               </div>
-              <div class="my-products-quick-actions" aria-label="Thao tác sản phẩm">
+              <div class="my-products-quick-actions" aria-label="Product actions">
                 <RouterLink
                   class="account-button account-button--primary my-products-add"
                   :to="{ name: 'product-create' }"
                 >
                   <span class="seller-card__plus" aria-hidden="true"></span>
-                  Thêm sản phẩm
+                  Add product
                 </RouterLink>
                 <RouterLink
                   class="account-button account-button--quiet my-products-trash-link"
                   :to="{ name: 'product-trash' }"
                 >
-                  Thùng rác
+                  Trash
                 </RouterLink>
               </div>
             </div>
@@ -1389,20 +1385,20 @@ onMounted(() => {
               />
               <span>
                 {{ allCurrentPageSelected
-                  ? 'Bỏ chọn trang này'
-                  : 'Chọn tất cả trên trang này' }}
+                  ? 'Deselect this page'
+                  : 'Select all on this page' }}
               </span>
             </label>
 
             <Transition name="selection-pop">
               <div v-if="selectedCount" class="my-products-selection-actions">
-                <strong aria-live="polite">Đã chọn {{ selectedCount }} sản phẩm</strong>
+                <strong aria-live="polite">Selected {{ selectedCount }} products</strong>
                 <button
                   type="button"
                   :disabled="deleting || updatingStatus"
                   @click="clearSelection"
                 >
-                  Bỏ chọn
+                  Deselect
                 </button>
                 <div class="my-products-bulk-actions">
                   <button
@@ -1417,7 +1413,7 @@ onMounted(() => {
                     @click="toggleBulkActionMenu"
                     @keydown.down.prevent="toggleBulkActionMenu"
                   >
-                    Hành động <span aria-hidden="true">▾</span>
+                    Actions <span aria-hidden="true">▾</span>
                   </button>
                   <Transition name="action-menu">
                     <div
@@ -1432,8 +1428,8 @@ onMounted(() => {
                       <button type="button" role="menuitem" @click="openStatusDialog">
                         <span class="my-products-action-menu__icon" aria-hidden="true">↻</span>
                         <span>
-                          <strong>Cập nhật trạng thái</strong>
-                          <small>Áp dụng chung cho sản phẩm đã chọn</small>
+                          <strong>Update status</strong>
+                          <small>Apply to all selected products</small>
                         </span>
                       </button>
                       <button
@@ -1444,8 +1440,8 @@ onMounted(() => {
                       >
                         <span class="my-products-action-menu__icon" aria-hidden="true">×</span>
                         <span>
-                          <strong>Đưa vào Thùng rác</strong>
-                          <small>Có thể khôi phục sau</small>
+                          <strong>Move to trash</strong>
+                          <small>Can be restored later</small>
                         </span>
                       </button>
                     </div>
@@ -1462,12 +1458,12 @@ onMounted(() => {
           >
             <span>{{ error }}</span>
             <button type="button" :disabled="loading" @click="loadProducts()">
-              Thử lại
+              Try again
             </button>
           </div>
 
           <div v-if="isInitialLoading" class="my-products-loading" role="status">
-            <span>Đang tải sản phẩm...</span>
+            <span>Loading products...</span>
             <div
               v-for="index in 6"
               :key="index"
@@ -1484,7 +1480,7 @@ onMounted(() => {
           >
             <div class="my-products-state__mark" aria-hidden="true">!</div>
             <div>
-              <h3>Không thể tải danh sách sản phẩm</h3>
+              <h3>Could not load product list</h3>
               <p>{{ error }}</p>
             </div>
             <button
@@ -1493,7 +1489,7 @@ onMounted(() => {
               type="button"
               @click="emit('open-auth')"
             >
-              Đăng nhập lại
+              Sign in again
             </button>
             <button
               v-else
@@ -1502,7 +1498,7 @@ onMounted(() => {
               :disabled="loading"
               @click="loadProducts()"
             >
-              Thử lại
+              Try again
             </button>
           </div>
 
@@ -1512,22 +1508,22 @@ onMounted(() => {
           >
             <div class="seller-card__icon" aria-hidden="true"></div>
             <div>
-              <h3>Bạn chưa đăng sản phẩm nào</h3>
-              <p>Tạo sản phẩm đầu tiên để bắt đầu khu vực bán hàng của bạn.</p>
+              <h3>You have not published any products</h3>
+              <p>Create your first product to start selling.</p>
             </div>
             <RouterLink
               class="account-button account-button--primary"
               :to="{ name: 'product-create' }"
             >
-              Thêm sản phẩm
+              Add product
             </RouterLink>
           </div>
 
           <div v-else-if="!items.length" class="my-products-state">
             <div class="my-products-state__mark" aria-hidden="true">0</div>
             <div>
-              <h3>Không tìm thấy sản phẩm phù hợp</h3>
-              <p>Hãy xóa từ khóa hoặc các bộ lọc để xem lại tất cả sản phẩm.</p>
+              <h3>No matching products found</h3>
+              <p>Clear the search term or filters to see all products.</p>
             </div>
             <button
               class="account-button account-button--quiet"
@@ -1535,7 +1531,7 @@ onMounted(() => {
               :disabled="loading"
               @click="clearFilters"
             >
-              Hiển thị tất cả
+              Show all
             </button>
           </div>
 
@@ -1562,14 +1558,14 @@ onMounted(() => {
                     :disabled="loading || deleting || updatingStatus"
                     @change="toggleProductSelection(row.product.id)"
                   />
-                  <span class="sr-only">Chọn {{ row.product.title }}</span>
+                  <span class="sr-only">Select {{ row.product.title }}</span>
                 </label>
 
                 <div class="my-product-card__media">
                   <img
                     v-if="productImageUrl(row.product) && !hasFailedImage(row.product.id)"
                     :src="productImageUrl(row.product)"
-                    :alt="`Ảnh ${row.product.title}`"
+                    :alt="`Image of ${row.product.title}`"
                     @error="markImageFailed(row.product.id)"
                   />
                   <div v-else class="my-product-card__fallback" aria-hidden="true">
@@ -1580,21 +1576,21 @@ onMounted(() => {
                 <div class="my-product-card__identity">
                   <span>{{ row.groupName }}</span>
                   <h3>{{ row.product.title }}</h3>
-                  <small>Mã sản phẩm #{{ row.product.id }}</small>
+                  <small>Product ID #{{ row.product.id }}</small>
                 </div>
 
                 <div class="my-product-card__metric my-product-card__price">
-                  <small>Giá hiển thị</small>
+                  <small>Displayed price</small>
                   <strong>{{ formatPrice(row.product) }}</strong>
                 </div>
 
                 <div class="my-product-card__metric my-product-card__stock">
-                  <small>Tồn kho</small>
+                  <small>Stock</small>
                   <strong :class="`stock-${stockTone(row.product.stock)}`">
                     {{ row.product.stock }}
                   </strong>
                   <small v-if="row.product.updated_at" class="my-product-card__updated">
-                    Cập nhật {{ formatUpdatedAt(row.product.updated_at) }}
+                    Updated {{ formatUpdatedAt(row.product.updated_at) }}
                   </small>
                 </div>
 
@@ -1607,17 +1603,17 @@ onMounted(() => {
                 <div class="my-product-card__actions">
                   <RouterLink
                     :to="{ name: 'product-edit', params: { id: row.product.id } }"
-                    :aria-label="`Chỉnh sửa ${row.product.title}`"
+                    :aria-label="`Edit ${row.product.title}`"
                   >
-                    Chỉnh sửa
+                    Edit
                   </RouterLink>
                   <button
                     type="button"
                     :disabled="deleting"
-                    :aria-label="`Xóa ${row.product.title}`"
+                    :aria-label="`Delete ${row.product.title}`"
                     @click="openDeleteDialog([row.product], $event)"
                   >
-                    Xóa
+                    Delete
                   </button>
                 </div>
               </article>
@@ -1627,11 +1623,11 @@ onMounted(() => {
           <nav
             v-if="items.length && pageTokens.length"
             class="my-products-pagination"
-            aria-label="Phân trang sản phẩm"
+            aria-label="Products pagination"
           >
             <button
               type="button"
-              aria-label="Trang trước"
+              aria-label="Previous page"
               :disabled="loading || !pagination.hasPreviousPage"
               @click="goToPage(pagination.currentPage - 1)"
             >
@@ -1668,12 +1664,12 @@ onMounted(() => {
       </div>
 
       <div v-else class="profile-empty">
-        <h3>Đăng nhập để quản lý sản phẩm</h3>
+        <h3>Sign in to manage products</h3>
         <p>
-          Bạn cần đăng nhập trước khi xem khu vực sản phẩm của tài khoản.
+          Sign in to view products for this account.
         </p>
         <button type="button" @click="emit('open-auth')">
-          Đăng nhập / Đăng ký
+          Sign in / Sign up
         </button>
       </div>
     </section>
@@ -1697,36 +1693,35 @@ onMounted(() => {
         >
           <header>
             <div>
-              <p class="account-card__eyebrow">Bộ lọc</p>
-              <h2 id="price-filter-title">Chọn khoảng giá</h2>
+              <h2 id="price-filter-title">Choose price range</h2>
             </div>
             <button
               ref="priceDialogCloseButton"
               type="button"
-              aria-label="Đóng cửa sổ lọc giá"
+              aria-label="Close price filter dialog"
               @click="closePriceDialog"
             >×</button>
           </header>
 
           <div class="my-products-price-modal__fields">
             <label>
-              <span>Giá từ</span>
+              <span>Price from</span>
               <input v-model="minPrice" min="0" inputmode="numeric" placeholder="0" type="number" />
             </label>
             <label>
-              <span>Giá đến</span>
-              <input v-model="maxPrice" min="0" inputmode="numeric" placeholder="Không giới hạn" type="number" />
+              <span>Price to</span>
+              <input v-model="maxPrice" min="0" inputmode="numeric" placeholder="No limit" type="number" />
             </label>
           </div>
 
           <p v-if="priceRangeError" class="my-products-price-modal__error" role="alert">
-            Giá từ không được lớn hơn giá đến.
+            Minimum price cannot exceed maximum price.
           </p>
 
           <footer>
-            <button type="button" @click="closePriceDialog">Hủy</button>
+            <button type="button" @click="closePriceDialog">Cancel</button>
             <button type="submit" :disabled="loading || priceRangeError">
-              {{ loading ? 'Đang lọc...' : 'Lọc giá' }}
+              {{ loading ? 'Filtering...' : 'Apply price' }}
             </button>
           </footer>
         </form>
@@ -1751,17 +1746,17 @@ onMounted(() => {
         @keydown.tab="trapDeleteDialogFocus"
       >
         <div class="product-delete-modal__icon" aria-hidden="true">!</div>
-        <p class="account-card__eyebrow">Xác nhận thao tác</p>
+        <p class="account-card__eyebrow">Confirm action</p>
         <h2 id="delete-product-title">
           {{ deleteDialog.mode === 'single'
-            ? 'Đưa sản phẩm vào Thùng rác?'
-            : `Xóa ${deleteDialog.products.length} sản phẩm đã chọn?` }}
+            ? 'Move product to trash?'
+            : `Delete ${deleteDialog.products.length} selected products?` }}
         </h2>
         <p id="delete-product-description">
           {{ deleteDialog.mode === 'single'
-            ? `“${deleteDialog.products[0].title}” sẽ không còn xuất hiện trong danh sách bán và marketplace.`
-            : 'Các sản phẩm này sẽ không còn xuất hiện trong danh sách bán và marketplace.' }}
-          Bạn vẫn có thể khôi phục chúng từ Thùng rác.
+            ? `“${deleteDialog.products[0].title}” will no longer appear in your selling list or marketplace.`
+            : 'These products will no longer appear in your selling list or marketplace.' }}
+          You can restore them from the trash.
         </p>
 
         <ul v-if="deleteDialog.mode === 'bulk'" class="product-delete-modal__list">
@@ -1772,7 +1767,7 @@ onMounted(() => {
             {{ product.title }}
           </li>
           <li v-if="deleteDialog.products.length > 5">
-            Và {{ deleteDialog.products.length - 5 }} sản phẩm khác
+            And {{ deleteDialog.products.length - 5 }} other products
           </li>
         </ul>
 
@@ -1786,7 +1781,7 @@ onMounted(() => {
             :disabled="deleting"
             @click="closeDeleteDialog"
           >
-            Hủy
+            Cancel
           </button>
           <button
             ref="confirmDeleteButton"
@@ -1796,10 +1791,10 @@ onMounted(() => {
             @click="confirmDelete"
           >
             {{ deleting
-              ? 'Đang xử lý...'
+              ? 'Processing...'
               : deleteDialog.mode === 'single'
-                ? 'Đưa vào Thùng rác'
-                : `Xóa ${deleteDialog.products.length} sản phẩm` }}
+                ? 'Move to trash'
+                : `Delete ${deleteDialog.products.length} products` }}
           </button>
         </div>
         </section>
@@ -1824,29 +1819,29 @@ onMounted(() => {
         >
           <header class="product-status-modal__header">
             <div>
-              <p class="account-card__eyebrow">Cập nhật hàng loạt</p>
-              <h2 id="status-modal-title">Cập nhật trạng thái sản phẩm</h2>
+              <p class="account-card__eyebrow">Bulk update</p>
+              <h2 id="status-modal-title">Update product status</h2>
             </div>
             <button
               ref="statusDialogCloseButton"
               class="product-status-modal__close"
               type="button"
-              aria-label="Đóng hộp thoại cập nhật trạng thái"
+              aria-label="Close status dialog"
               :disabled="updatingStatus"
               @click="closeStatusDialog"
             >×</button>
           </header>
 
           <p id="status-modal-description" class="product-status-modal__description">
-            Trạng thái mới sẽ được áp dụng cho
-            <strong>{{ statusDialog.products.length }} sản phẩm đã chọn</strong>.
+            The new status will be applied to
+            <strong>{{ statusDialog.products.length }} selected products</strong>.
           </p>
 
           <fieldset
             class="product-status-options"
             :aria-describedby="statusUpdateError ? 'status-update-error' : undefined"
           >
-            <legend>Trạng thái mới</legend>
+            <legend>New status</legend>
             <label
               v-for="option in bulkStatusOptions"
               :key="option.value"
@@ -1869,14 +1864,14 @@ onMounted(() => {
           </fieldset>
 
           <div class="product-status-modal__products">
-            <span>Áp dụng cho</span>
+            <span>Apply to</span>
             <ul>
               <li
                 v-for="product in statusDialog.products.slice(0, 5)"
                 :key="product.id"
               >{{ product.title }}</li>
               <li v-if="statusDialog.products.length > 5">
-                Và {{ statusDialog.products.length - 5 }} sản phẩm khác
+                And {{ statusDialog.products.length - 5 }} other products
               </li>
             </ul>
           </div>
@@ -1890,7 +1885,7 @@ onMounted(() => {
 
           <footer class="product-delete-modal__actions product-status-modal__actions">
             <button type="button" :disabled="updatingStatus" @click="closeStatusDialog">
-              Hủy
+              Cancel
             </button>
             <button
               class="product-status-modal__save"
@@ -1899,7 +1894,7 @@ onMounted(() => {
               @click="confirmStatusUpdate"
             >
               <span v-if="updatingStatus" class="seller-button-spinner" aria-hidden="true"></span>
-              {{ updatingStatus ? 'Đang lưu...' : 'Lưu thay đổi' }}
+              {{ updatingStatus ? 'Saving...' : 'Save changes' }}
             </button>
           </footer>
         </section>

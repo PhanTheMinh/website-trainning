@@ -385,7 +385,7 @@ function buildConfiguration(product) {
         (size, index) => ({
             sku: `${product.code}-${size || 'DEFAULT'}`,
             option_values: size ? { size } : {},
-            price: null,
+            price: product.price,
             stock_quantity: 6 + ((index * 7 + product.code.length) % 18),
             image_index: 0,
             images: [],

@@ -21,6 +21,7 @@ describe('catalog helpers', () => {
 
   it('prioritizes featured products and formats VND prices', () => {
     expect(sortProducts(products, 'featured')[0].name).toBe('Giày tempo')
-    expect(formatCurrency(1250000)).toContain('1.250.000')
+    expect(formatCurrency(1250000)).toContain('1,250,000')
+    expect(formatCurrency(1250000)).toContain('VND')
   })
 })

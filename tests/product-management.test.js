@@ -67,7 +67,7 @@ async function createManagedProduct(owner, overrides = {}) {
         product_id: product.id,
         sku: overrides.sku || `MANAGED-${testRun}-${productSequence}`,
         variant_key: 'default',
-        price: null,
+        price: overrides.variantPrice ?? overrides.price ?? 500000,
         image_url: null,
         stock_quantity: overrides.stock ?? 5,
         status: 'active',
@@ -460,7 +460,7 @@ describe('Complete owner product management security and lifecycle', function ()
             variants: [{
                 sku: reservedVariant.sku,
                 option_values: {},
-                price: null,
+                price: 500000,
                 stock_quantity: 10,
                 image_index: 0,
                 status: 'active'

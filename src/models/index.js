@@ -8,6 +8,12 @@ const ProductOptionValue = require('./product-option-value')
 const ProductVariant = require('./product-variant')
 const ProductVariantImage = require('./product-variant-image')
 const ProductVariantValue = require('./product-variant-value')
+const ShippingMethod = require('./shipping-method')
+const Country = require('./country')
+const ShippingRate = require('./shipping-rate')
+const ShippingRateCountry = require('./shipping-rate-country')
+const CheckoutToken = require('./checkout-token')
+const PaymentMethod = require('./payment-method')
 
 User.hasMany(Product, {
     as: 'products',
@@ -24,6 +30,16 @@ User.hasOne(Shop, {
     foreignKey: 'owner_user_id'
 })
 
+User.hasMany(PaymentMethod, {
+    as: 'paymentMethods',
+    foreignKey: 'user_id'
+})
+
+PaymentMethod.belongsTo(User, {
+    as: 'user',
+    foreignKey: 'user_id'
+})
+
 Shop.belongsTo(User, {
     as: 'owner',
     foreignKey: 'owner_user_id'
@@ -37,6 +53,50 @@ Shop.hasMany(Product, {
 Product.belongsTo(Shop, {
     as: 'shop',
     foreignKey: 'shop_id'
+})
+
+Shop.hasMany(ShippingMethod, {
+    as: 'shippingMethods',
+    foreignKey: 'shop_id'
+})
+
+ShippingMethod.belongsTo(Shop, {
+    as: 'shop',
+    foreignKey: 'shop_id'
+})
+
+Shop.hasMany(Country, {
+    as: 'countries',
+    foreignKey: 'shop_id'
+})
+
+Country.belongsTo(Shop, {
+    as: 'shop',
+    foreignKey: 'shop_id'
+})
+
+ShippingMethod.hasMany(ShippingRate, {
+    as: 'rates',
+    foreignKey: 'shipping_method_id'
+})
+
+ShippingRate.belongsTo(ShippingMethod, {
+    as: 'shippingMethod',
+    foreignKey: 'shipping_method_id'
+})
+
+ShippingRate.belongsToMany(Country, {
+    as: 'countries',
+    through: ShippingRateCountry,
+    foreignKey: 'shipping_rate_id',
+    otherKey: 'country_id'
+})
+
+Country.belongsToMany(ShippingRate, {
+    as: 'shippingRates',
+    through: ShippingRateCountry,
+    foreignKey: 'country_id',
+    otherKey: 'shipping_rate_id'
 })
 
 Category.hasMany(Product, {
@@ -125,5 +185,11 @@ module.exports = {
     ProductOptionValue,
     ProductVariant,
     ProductVariantImage,
-    ProductVariantValue
+    ProductVariantValue,
+    ShippingMethod,
+    Country,
+    ShippingRate,
+    ShippingRateCountry,
+    CheckoutToken,
+    PaymentMethod
 }

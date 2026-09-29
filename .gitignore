@@ -8,3 +8,4 @@ npm-debug.log
 uploads/avatars/*
 src/uploads/avatars/*
 src/uploads/products/*
+frontend/public/address-data/

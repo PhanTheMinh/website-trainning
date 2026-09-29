@@ -61,13 +61,13 @@ onMounted(loadProducts)
   <main class="catalog-page">
     <section class="section catalog-hero">
       <div class="section-heading">
-        <p class="eyebrow">Danh mục</p>
-        <h1>Danh mục chạy bộ</h1>
-        <p>Chọn nhóm sản phẩm phù hợp.</p>
+        <p class="eyebrow">Categories</p>
+        <h1>Running categories</h1>
+        <p>Find the right products for your run.</p>
       </div>
 
-      <div class="category-pills" aria-label="Điều hướng danh mục">
-        <RouterLink to="/products">Tất cả sản phẩm</RouterLink>
+      <div class="category-pills" aria-label="Category navigation">
+        <RouterLink to="/products">All products</RouterLink>
         <RouterLink
           v-for="category in categories"
           :key="category.slug"
@@ -81,13 +81,13 @@ onMounted(loadProducts)
       </div>
 
       <div v-if="loading" class="catalog-empty" role="status">
-        <h3>Đang tải danh mục...</h3>
+        <h3>Loading categories...</h3>
       </div>
 
       <div v-else-if="loadError" class="catalog-empty">
-        <h3>Không thể tải dữ liệu danh mục</h3>
+        <h3>Could not load categories</h3>
         <p>{{ loadError }}</p>
-        <button type="button" @click="loadProducts">Thử lại</button>
+        <button type="button" @click="loadProducts">Try again</button>
       </div>
 
       <template v-else>
@@ -102,7 +102,7 @@ onMounted(loadProducts)
               params: { slug: group.slug }
             }"
           >
-            <span>{{ group.count }} sản phẩm</span>
+            <span>{{ group.count }} products</span>
             <h2>{{ group.name }}</h2>
             <p>{{ group.description }}</p>
           </RouterLink>
@@ -115,7 +115,7 @@ onMounted(loadProducts)
         >
           <div class="category-group-heading">
             <div>
-              <p class="eyebrow">{{ group.count }} sản phẩm</p>
+              <p class="eyebrow">{{ group.count }} products</p>
               <h2>{{ group.name }}</h2>
             </div>
             <RouterLink
@@ -124,7 +124,7 @@ onMounted(loadProducts)
                 params: { slug: group.slug }
               }"
             >
-              Xem danh mục
+              View category
             </RouterLink>
           </div>
           <ProductGrid
@@ -134,9 +134,9 @@ onMounted(loadProducts)
         </section>
 
         <div v-if="!categoryGroups.some((group) => group.count)" class="catalog-empty category-overview-empty">
-          <h3>Cửa hàng chưa có sản phẩm</h3>
-          <p>Chưa có sản phẩm.</p>
-          <RouterLink to="/products">Xem tất cả sản phẩm</RouterLink>
+          <h3>No products yet</h3>
+          <p>Products will appear here when available.</p>
+          <RouterLink to="/products">View all products</RouterLink>
         </div>
       </template>
     </section>

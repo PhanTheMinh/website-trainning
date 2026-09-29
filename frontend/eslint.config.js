@@ -9,7 +9,7 @@ export default [
   js.configs.recommended,
   ...pluginVue.configs['flat/essential'],
   {
-    files: ['src/**/*.{js,vue}'],
+    files: ['src/**/*.{js,vue}', 'public/theme-init.js'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',

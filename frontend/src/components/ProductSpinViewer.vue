@@ -9,7 +9,7 @@ const props = defineProps({
   },
   label: {
     type: String,
-    default: 'Sản phẩm 360 độ'
+    default: '360-degree product view'
   },
   spriteUrl: {
     type: String,
@@ -175,7 +175,7 @@ onBeforeUnmount(() => {
     :style="viewerStyle"
     role="link"
     tabindex="0"
-    :aria-label="`Xem chi tiết ${label}`"
+    :aria-label="`View details for ${label}`"
     @pointerdown="handlePointerDown"
     @pointermove="handlePointerMove"
     @pointerup="handlePointerEnd"
@@ -225,6 +225,6 @@ onBeforeUnmount(() => {
       </div>
     </div>
     <span v-if="!compact" class="spin-viewer__angle">{{ String(angle).padStart(3, '0') }}°</span>
-    <span class="spin-viewer__hint" aria-hidden="true">← Kéo để xoay →</span>
+    <span class="spin-viewer__hint" aria-hidden="true">← Drag to rotate →</span>
   </div>
 </template>

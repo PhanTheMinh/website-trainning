@@ -172,7 +172,7 @@ function escapeLikePattern(value) {
 
 const minimumPriceExpression = sequelize.literal(
     'COALESCE((' +
-    'SELECT MIN(COALESCE(product_variant.price, `Product`.`price`)) ' +
+    'SELECT MIN(product_variant.price) ' +
     'FROM product_variants AS product_variant ' +
     'WHERE product_variant.product_id = `Product`.`id` ' +
     "AND product_variant.status = 'active'" +
@@ -181,7 +181,7 @@ const minimumPriceExpression = sequelize.literal(
 
 const maximumPriceExpression = sequelize.literal(
     'COALESCE((' +
-    'SELECT MAX(COALESCE(product_variant.price, `Product`.`price`)) ' +
+    'SELECT MAX(product_variant.price) ' +
     'FROM product_variants AS product_variant ' +
     'WHERE product_variant.product_id = `Product`.`id` ' +
     "AND product_variant.status = 'active'" +
@@ -224,7 +224,7 @@ function effectivePriceFilter(filters) {
     if (filters.minPrice !== undefined) {
         const minimum = sequelize.escape(Number(filters.minPrice))
         variantConditions.push(
-            `COALESCE(product_variant.price, \`Product\`.price) >= ${minimum}`
+            `product_variant.price >= ${minimum}`
         )
         productConditions.push(`\`Product\`.price >= ${minimum}`)
     }
@@ -232,7 +232,7 @@ function effectivePriceFilter(filters) {
     if (filters.maxPrice !== undefined) {
         const maximum = sequelize.escape(Number(filters.maxPrice))
         variantConditions.push(
-            `COALESCE(product_variant.price, \`Product\`.price) <= ${maximum}`
+            `product_variant.price <= ${maximum}`
         )
         productConditions.push(`\`Product\`.price <= ${maximum}`)
     }
@@ -681,10 +681,8 @@ function serializeProduct(product, { storefront = false } = {}) {
         images: (variant.images || []).sort(
             (left, right) => left.sort_order - right.sort_order
         ),
-        price: variant.price === null ? null : Number(variant.price),
-        effective_price: variant.price === null
-            ? Number(value.price)
-            : Number(variant.price),
+        price: Number(variant.price),
+        effective_price: Number(variant.price),
         stock_quantity: Number(variant.stock_quantity),
         option_values: (variant.optionValues || [])
             .map((optionValue) => {
@@ -1953,9 +1951,7 @@ async function validatePurchaseItems(items, existingTransaction = null) {
                 ...item,
                 sku: variant.sku,
                 stock_quantity: Number(variant.stock_quantity),
-                unit_price: variant.price === null
-                    ? Number(product.price)
-                    : Number(variant.price),
+                unit_price: Number(variant.price),
                 shop_id: Number(shop.id),
                 shop: {
                     id: Number(shop.id),

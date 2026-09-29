@@ -24,7 +24,7 @@ const ProductVariant = sequelize.define(
         },
         price: {
             type: DataTypes.DECIMAL(12, 2),
-            allowNull: true
+            allowNull: false
         },
         image_url: {
             type: DataTypes.STRING(255),

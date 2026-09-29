@@ -131,6 +131,7 @@ app.use('/api/users',userRoute)
 app.use('/api/categories', categoryRoute)
 app.use('/api/products', productRoute)
 app.use('/api/shops', shopRoute)
+app.use('/api/checkout', require('./routes/checkout.route'))
 
 if (process.env.NODE_ENV !== 'test') {
     app.use(morgan('dev'))

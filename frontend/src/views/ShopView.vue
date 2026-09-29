@@ -263,17 +263,17 @@ onBeforeUnmount(() => {
   <main class="shop-page">
     <section class="section">
       <RouterLink class="profile-back" to="/products">
-        ← Quay lại tất cả sản phẩm
+        ← Back to all products
       </RouterLink>
 
       <div v-if="loading && !shop" class="profile-empty" role="status">
-        <h3>Đang tải shop...</h3>
+        <h3>Loading shop...</h3>
       </div>
 
       <div v-else-if="loadError && !shop" class="profile-empty">
-        <h3>Không thể mở shop</h3>
+        <h3>Could not open shop</h3>
         <p>{{ loadError }}</p>
-        <RouterLink to="/products">Khám phá shop khác</RouterLink>
+        <RouterLink to="/products">Explore other shops</RouterLink>
       </div>
 
       <template v-else-if="shop">
@@ -290,7 +290,7 @@ onBeforeUnmount(() => {
             <h1>{{ shop.name }}</h1>
             <p v-if="shop.description">{{ shop.description }}</p>
             <div class="shop-hero__facts">
-              <span><strong>{{ shop.product_count }}</strong> sản phẩm</span>
+              <span><strong>{{ shop.product_count }}</strong> products</span>
               <span v-if="joinedLabel">Tham gia {{ joinedLabel }}</span>
             </div>
           </div>
@@ -301,28 +301,28 @@ onBeforeUnmount(() => {
           class="catalog-empty shop-closed-state"
           role="status"
         >
-          <h3>Shop đang tạm đóng</h3>
-          <p>Các sản phẩm của shop hiện chưa thể mua.</p>
-          <RouterLink to="/products">Xem sản phẩm khác</RouterLink>
+          <h3>Shop is temporarily closed</h3>
+          <p>Products from this shop are not available for purchase right now.</p>
+          <RouterLink to="/products">Browse other products</RouterLink>
         </section>
 
         <section v-else class="shop-catalog" aria-labelledby="shop-products-title">
           <div class="shop-catalog__heading">
-            <h2 id="shop-products-title">Sản phẩm</h2>
+            <h2 id="shop-products-title">Products</h2>
           </div>
 
           <form class="shop-filters" @submit.prevent="submitSearch">
             <label class="shop-filters__search">
-              <span>Tìm trong shop</span>
-              <input v-model="searchDraft" placeholder="Tên sản phẩm hoặc thương hiệu" />
+              <span>Search this shop</span>
+              <input v-model="searchDraft" placeholder="Product name or brand" />
             </label>
             <label>
-              <span>Danh mục</span>
+              <span>Category</span>
               <select
                 :value="categoryValue"
                 @change="updateQuery({ category: $event.target.value || undefined, page: undefined })"
               >
-                <option value="">Tất cả danh mục</option>
+                <option value="">All categories</option>
                 <option
                   v-for="category in categories"
                   :key="category.value"
@@ -331,7 +331,7 @@ onBeforeUnmount(() => {
               </select>
             </label>
             <label>
-              <span>Sắp xếp</span>
+              <span>Sort</span>
               <select v-model="sortKey">
                 <option
                   v-for="option in sortOptions"
@@ -341,7 +341,7 @@ onBeforeUnmount(() => {
               </select>
             </label>
             <label>
-              <span>Giá từ</span>
+              <span>Price from</span>
               <input
                 :value="minPrice"
                 min="0"
@@ -352,35 +352,35 @@ onBeforeUnmount(() => {
               />
             </label>
             <label>
-              <span>Giá đến</span>
+              <span>Price to</span>
               <input
                 :value="maxPrice"
                 min="0"
                 inputmode="numeric"
                 type="number"
-                placeholder="Không giới hạn"
+                placeholder="No limit"
                 @change="updateQuery({ maxPrice: $event.target.value || undefined, page: undefined })"
               />
             </label>
-            <button type="submit" :disabled="loading || priceError">Tìm kiếm</button>
+            <button type="submit" :disabled="loading || priceError">Search</button>
             <p v-if="priceError" class="catalog-price-filter__error" role="alert">
-              Giá từ không được lớn hơn giá đến.
+              Minimum price cannot exceed maximum price.
             </p>
           </form>
 
           <div v-if="loading" class="catalog-empty" role="status">
-            <h3>Đang tải sản phẩm...</h3>
+            <h3>Loading products...</h3>
           </div>
           <div v-else-if="loadError" class="catalog-empty">
-            <h3>Không thể tải sản phẩm</h3>
+            <h3>Could not load products</h3>
             <p>{{ loadError }}</p>
-            <button type="button" @click="loadShop">Thử lại</button>
+            <button type="button" @click="loadShop">Try again</button>
           </div>
           <ProductGrid
             v-else
             :products="products"
-            empty-title="Không tìm thấy sản phẩm"
-            empty-message="Hãy thử bộ lọc khác."
+            empty-title="No products found"
+            empty-message="Try another filter."
             @add-to-cart="emit('add-to-cart', $event)"
           />
 

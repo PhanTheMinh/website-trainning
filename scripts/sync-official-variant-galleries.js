@@ -281,7 +281,7 @@ async function syncProduct(productId, sourceUrl) {
                 sku,
                 variant_key: selectedValues.map((value) => Number(value.id))
                     .sort((left, right) => left - right).join('-'),
-                price: null,
+                price: product.price,
                 image_url: gallery[0],
                 stock_quantity: sizeStock.get(size) || 10 + (index % 9),
                 status: 'active',

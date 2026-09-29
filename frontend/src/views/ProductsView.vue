@@ -3,6 +3,11 @@ import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import PaginationNav from '../components/PaginationNav.vue'
 import ProductGrid from '../components/ProductGrid.vue'
+import PageHeader from '../components/ui/PageHeader.vue'
+import ProductSkeleton from '../components/ui/ProductSkeleton.vue'
+import EmptyState from '../components/ui/EmptyState.vue'
+import UiButton from '../components/ui/UiButton.vue'
+import UiIcon from '../components/ui/UiIcon.vue'
 import { sortOptions } from '../data/catalog.js'
 import {
   categories,
@@ -17,6 +22,7 @@ const router = useRouter()
 const supportedSorts = new Set(sortOptions.map((option) => option.value))
 const products = ref([])
 const loading = ref(false)
+const filtersOpen = ref(false)
 const productLoadError = ref('')
 const pagination = ref({
   currentPage: 1,
@@ -41,6 +47,22 @@ const categoryNotFound = computed(
 const searchTerm = computed(() => String(route.query.q || '').trim())
 const minPrice = computed(() => String(route.query.minPrice || '').trim())
 const maxPrice = computed(() => String(route.query.maxPrice || '').trim())
+const draftMinPrice = ref('')
+const draftMaxPrice = ref('')
+const filterError = computed(() => draftMinPrice.value !== '' && draftMaxPrice.value !== '' && Number(draftMinPrice.value) > Number(draftMaxPrice.value))
+watch([minPrice, maxPrice], ([minimum, maximum]) => {
+  draftMinPrice.value = minimum
+  draftMaxPrice.value = maximum
+}, { immediate: true })
+
+function applyPriceFilter() {
+  if (filterError.value) return
+  router.replace({
+    name: route.name,
+    params: route.params,
+    query: { ...route.query, minPrice: draftMinPrice.value === '' ? undefined : String(draftMinPrice.value), maxPrice: draftMaxPrice.value === '' ? undefined : String(draftMaxPrice.value), page: undefined }
+  })
+}
 const currentPage = computed(() => {
   const page = Number(route.query.page || 1)
   return Number.isSafeInteger(page) && page > 0 ? page : 1
@@ -75,19 +97,19 @@ const sortKey = computed({
 const visibleProducts = computed(() => products.value)
 
 const pageTitle = computed(() =>
-  selectedCategory.value?.name || 'Tất cả sản phẩm'
+  selectedCategory.value?.name || 'All products'
 )
 
 const emptyMessage = computed(() => {
   if (searchTerm.value) {
-    return `Không có sản phẩm khớp với “${searchTerm.value}”.`
+    return `No products match “${searchTerm.value}”.`
   }
 
   if (selectedCategory.value) {
-    return `Danh mục ${selectedCategory.value.name} hiện chưa có sản phẩm.`
+    return `There are no products in ${selectedCategory.value.name} yet.`
   }
 
-  return 'Cửa hàng hiện chưa có sản phẩm đang hoạt động.'
+  return 'There are no active products in the store yet.'
 })
 
 async function loadProducts() {
@@ -163,7 +185,7 @@ async function goToPage(page) {
       page: page === 1 ? undefined : page
     }
   })
-  document.querySelector('.catalog-toolbar')?.scrollIntoView({
+  document.querySelector('.rs-catalog__toolbar')?.scrollIntoView({
     behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
       ? 'auto'
       : 'smooth',
@@ -188,115 +210,77 @@ watch(
 )
 </script>
 
+
 <template>
-  <main class="catalog-page">
-    <section class="section catalog-hero">
-      <div class="section-heading">
-        <h1>{{ categoryNotFound ? 'Danh mục không tồn tại' : pageTitle }}</h1>
-        <p v-if="searchTerm && !categoryNotFound">
-          {{ pagination.totalItems }} kết quả cho “{{ searchTerm }}”
-        </p>
-      </div>
-
-      <div class="category-pills" aria-label="Chọn danh mục sản phẩm">
-        <RouterLink to="/products">Tất cả sản phẩm</RouterLink>
-        <RouterLink
-          v-for="category in categories"
-          :key="category.slug"
-          :to="{
-            name: 'category',
-            params: { slug: category.slug }
-          }"
-        >
-          {{ category.name }}
-        </RouterLink>
-      </div>
-
-      <div v-if="categoryNotFound" class="catalog-empty">
-        <p>Danh mục không tồn tại.</p>
-        <RouterLink to="/products">Xem tất cả sản phẩm</RouterLink>
-      </div>
-
-      <template v-else>
-        <div class="catalog-toolbar">
-          <span>
-            {{ loading ? 'Đang tải...' : `${pagination.totalItems} sản phẩm` }}
-          </span>
-          <label for="product-sort">Sắp xếp</label>
-          <select id="product-sort" v-model="sortKey" :disabled="loading">
-            <option
-              v-for="option in sortOptions"
-              :key="option.value"
-              :value="option.value"
-            >
-              {{ option.label }}
-            </option>
-          </select>
-        </div>
-
-        <form
-          class="catalog-price-filter"
-          @submit.prevent="!priceError && loadProducts()"
-        >
-          <label for="catalog-min-price">Giá từ</label>
-          <input
-            id="catalog-min-price"
-            :value="minPrice"
-            min="0"
-            inputmode="numeric"
-            placeholder="0"
-            type="number"
-            @change="router.replace({ name: route.name, params: route.params, query: { ...route.query, minPrice: $event.target.value || undefined, page: undefined } })"
-          />
-          <label for="catalog-max-price">đến</label>
-          <input
-            id="catalog-max-price"
-            :value="maxPrice"
-            min="0"
-            inputmode="numeric"
-            placeholder="Không giới hạn"
-            type="number"
-            @change="router.replace({ name: route.name, params: route.params, query: { ...route.query, maxPrice: $event.target.value || undefined, page: undefined } })"
-          />
-          <button type="submit" :disabled="loading || priceError">Lọc giá</button>
-          <p v-if="priceError" class="catalog-price-filter__error" role="alert">
-            Giá từ không được lớn hơn giá đến.
-          </p>
+  <main class="rs-catalog rs-container">
+    <PageHeader :title="categoryNotFound ? 'Category not found' : pageTitle" :description="searchTerm ? 'Results for “' + searchTerm + '”' : ''" />
+    <EmptyState v-if="categoryNotFound" title="Category not found" description="Explore our running gear to find what you need.">
+      <RouterLink class="rs-button" to="/products">Shop all products</RouterLink>
+    </EmptyState>
+    <div v-else class="rs-catalog__layout">
+      <button class="rs-button rs-button--secondary rs-catalog__filter-toggle" type="button" :aria-expanded="filtersOpen" aria-controls="catalog-filters" @click="filtersOpen = !filtersOpen"><UiIcon name="filter" />Filters<UiIcon :name="filtersOpen ? 'close' : 'plus'" :size="16" /></button>
+      <aside id="catalog-filters" class="rs-catalog__filters" :class="{ 'is-open': filtersOpen }" aria-label="Product filters">
+        <div class="rs-catalog__filter-heading"><h2>Filters</h2><UiIcon name="filter" :size="18" /></div>
+        <nav class="rs-catalog__categories" aria-label="Product categories">
+          <h3>Category</h3>
+          <RouterLink to="/products" :class="{ 'is-selected': !selectedCategory }" :aria-current="!selectedCategory ? 'page' : undefined">All products<UiIcon name="arrow" :size="16" /></RouterLink>
+          <RouterLink v-for="category in categories" :key="category.slug" :to="{ name: 'category', params: { slug: category.slug } }" :class="{ 'is-selected': selectedCategory?.value === category.value }" :aria-current="selectedCategory?.value === category.value ? 'page' : undefined">{{ category.name }}</RouterLink>
+        </nav>
+        <form class="rs-catalog__price" @submit.prevent="applyPriceFilter">
+          <h3>Price range <span>VND</span></h3>
+          <label class="rs-field" for="catalog-min-price">Minimum<input id="catalog-min-price" v-model="draftMinPrice" class="rs-input" min="0" inputmode="numeric" placeholder="0" type="number" :aria-invalid="filterError" :aria-describedby="filterError ? 'catalog-price-error' : undefined" /></label>
+          <label class="rs-field" for="catalog-max-price">Maximum<input id="catalog-max-price" v-model="draftMaxPrice" class="rs-input" min="0" inputmode="numeric" placeholder="No maximum" type="number" :aria-invalid="filterError" :aria-describedby="filterError ? 'catalog-price-error' : undefined" /></label>
+          <p v-if="filterError" id="catalog-price-error" class="rs-alert rs-alert--error" role="alert">Minimum price must not exceed maximum price.</p>
+          <UiButton type="submit" variant="secondary" :disabled="loading || filterError">Apply price</UiButton>
+          <button v-if="minPrice || maxPrice" class="rs-catalog__clear" type="button" @click="router.replace({ name: route.name, params: route.params, query: { ...route.query, minPrice: undefined, maxPrice: undefined, page: undefined } })">Clear price filter</button>
         </form>
-
-        <div v-if="loading" class="catalog-empty" role="status">
-          <h3>Đang tải sản phẩm...</h3>
+      </aside>
+      <section class="rs-catalog__results" aria-label="Products" :aria-busy="loading">
+        <div class="rs-catalog__toolbar">
+          <span role="status">{{ loading ? 'Finding your gear…' : pagination.totalItems + ' products' }}</span>
+          <label for="product-sort" class="rs-catalog__sort"><span>Sort by</span><select id="product-sort" v-model="sortKey" class="rs-input" aria-label="Sort products" :disabled="loading"><option v-for="option in sortOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></label>
         </div>
-
-        <div v-else-if="productLoadError" class="catalog-empty">
-          <h3>Không thể tải sản phẩm</h3>
-          <p>{{ productLoadError }}</p>
-          <button type="button" @click="loadProducts">Thử lại</button>
-        </div>
-
-        <ProductGrid
-          v-else
-          :products="visibleProducts"
-          empty-title="Chưa có sản phẩm"
-          :empty-message="emptyMessage"
-          @add-to-cart="emit('add-to-cart', $event)"
-        />
-
-        <PaginationNav
-          :pagination="pagination"
-          :disabled="loading"
-          @change="goToPage"
-        />
-
-        <RouterLink
-          v-if="selectedCategory"
-          class="catalog-all-products-link"
-          to="/products"
-        >
-          Xem tất cả sản phẩm
-        </RouterLink>
-
-      </template>
-    </section>
+        <ProductSkeleton v-if="loading" />
+        <EmptyState v-else-if="productLoadError" title="We couldn’t load the products" :description="productLoadError"><UiButton @click="loadProducts">Try again</UiButton></EmptyState>
+        <ProductGrid v-else :products="visibleProducts" empty-title="No products found" :empty-message="emptyMessage" @add-to-cart="emit('add-to-cart', $event)" />
+        <PaginationNav :pagination="pagination" :disabled="loading" @change="goToPage" />
+      </section>
+    </div>
   </main>
 </template>
+<style scoped>
+.rs-catalog { min-height: 70vh; }
+.rs-catalog__layout { display: grid; grid-template-columns: 208px minmax(0, 1fr); gap: 40px; }
+.rs-catalog__filters { align-self: start; position: sticky; top: 104px; }
+.rs-catalog__filter-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; color: var(--rs-text); }
+.rs-catalog__filter-heading h2 { font-size: 18px; margin: 0; }
+.rs-catalog__categories { display: grid; gap: 4px; padding-bottom: 24px; border-bottom: 1px solid var(--rs-border); }
+.rs-catalog__categories h3, .rs-catalog__price h3 { font-size: 14px; font-weight: 600; margin: 0 0 12px; color: var(--rs-text); }
+.rs-catalog__categories a { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--rs-muted); font-size: 14px; font-weight: 400; padding: 10px 12px; border-radius: 6px; }
+.rs-catalog__categories a.is-selected { color: var(--rs-text); font-weight: 600; background: var(--rs-subtle); }
+.rs-catalog__categories a:hover { color: var(--rs-text); }
+.rs-catalog__price { display: grid; gap: 16px; padding-top: 24px; }
+.rs-catalog__price h3 { display: flex; justify-content: space-between; margin: 0; }
+.rs-catalog__price h3 span { color: var(--rs-muted); font-size: 12px; font-weight: 400; }
+.rs-catalog__clear { border: 0; background: none; color: var(--rs-link); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; min-height: 44px; }
+.rs-catalog__toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--rs-border); scroll-margin-top: 150px; }
+.rs-catalog__toolbar > span { color: var(--rs-muted); font-size: 14px; }
+.rs-catalog__sort { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--rs-muted); }
+.rs-catalog__sort > span { white-space: nowrap; }
+.rs-catalog__sort select { max-width: 200px; }
+.rs-catalog__filter-toggle { display: none; }
+@media (max-width: 1000px) { .rs-catalog__layout { grid-template-columns: 180px minmax(0, 1fr); gap: 24px; } .rs-catalog__filters { top: 150px; } }
+@media (max-width: 760px) {
+  .rs-catalog__layout { grid-template-columns: 1fr; gap: 16px; }
+  .rs-catalog__filter-toggle { display: flex; width: fit-content; }
+  .rs-catalog__filters { display: none; position: static; padding: 16px; border: 1px solid var(--rs-border); border-radius: 8px; background: var(--rs-surface); }
+  .rs-catalog__filters.is-open { display: block; }
+  .rs-catalog__filter-heading { display: none; }
+  .rs-catalog__price { grid-template-columns: 1fr 1fr; }
+  .rs-catalog__price h3, .rs-catalog__price .rs-alert { grid-column: 1 / -1; }
+  .rs-catalog__toolbar { margin-bottom: 16px; gap: 8px; }
+  .rs-catalog__sort > span { display: none; }
+  .rs-catalog__sort select { max-width: 190px; font-size: 13px; }
+  .rs-catalog__toolbar > span { font-size: 13px; }
+}
+</style>

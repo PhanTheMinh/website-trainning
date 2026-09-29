@@ -23,19 +23,19 @@ const activeHasSpin = computed(() => Boolean(
 const activeSpecs = computed(() => {
   const category = activeProduct.value?.category?.toLowerCase() || ''
   if (category.includes('giày')) return [
-    ['Bề mặt', 'Road'],
-    ['Mục tiêu', 'Daily / Race'],
-    ['Trải nghiệm', activeHasSpin.value ? '360° interactive' : 'Studio preview']
+    ['Surface', 'Road'],
+    ['Purpose', 'Daily / Race'],
+    ['Experience', activeHasSpin.value ? '360° interactive' : 'Studio preview']
   ]
   if (category.includes('áo') || category.includes('quần')) return [
-    ['Chất liệu', 'Performance'],
-    ['Độ thoáng', 'High airflow'],
-    ['Trải nghiệm', activeHasSpin.value ? '360° interactive' : 'Studio preview']
+    ['Material', 'Performance'],
+    ['Breathability', 'High airflow'],
+    ['Experience', activeHasSpin.value ? '360° interactive' : 'Studio preview']
   ]
   return [
-    ['Bộ môn', 'Running'],
-    ['Thiết kế', 'Performance'],
-    ['Trải nghiệm', activeHasSpin.value ? '360° interactive' : 'Studio preview']
+    ['Sport', 'Running'],
+    ['Design', 'Performance'],
+    ['Experience', activeHasSpin.value ? '360° interactive' : 'Studio preview']
   ]
 })
 
@@ -52,10 +52,10 @@ function setProduct(index) {
   <section class="product-turntable" aria-labelledby="turntable-title">
     <div class="product-turntable__heading">
       <div>
-        <p class="eyebrow">Bán chạy 360°</p>
-        <h2 id="turntable-title">Xoay để nhìn.<br /><em>Chạm để sở hữu.</em></h2>
+        <p class="eyebrow">Featured</p>
+        <h2 id="turntable-title">Bestsellers</h2>
       </div>
-      <p>Kéo hoặc vuốt để xoay sản phẩm.</p>
+      <p>Drag to view the product in 360°.</p>
     </div>
 
     <div v-if="activeProduct" class="product-turntable__layout">
@@ -65,7 +65,7 @@ function setProduct(index) {
         <small>{{ formatCurrency(activeProduct.price) }}</small>
         <div>
           <i :class="{ 'is-ready': activeHasSpin }"></i>
-          {{ activeHasSpin ? 'Kéo để xoay' : 'Xem sản phẩm' }}
+          {{ activeHasSpin ? 'Drag to rotate' : 'View product' }}
         </div>
       </div>
 
@@ -82,16 +82,16 @@ function setProduct(index) {
       />
 
       <div v-if="showcaseProducts.length > 1" class="product-turntable__selector">
-        <button type="button" aria-label="Sản phẩm trước" @click="selectProduct(-1)">←</button>
+        <button type="button" aria-label="Previous product" @click="selectProduct(-1)">←</button>
         <div aria-live="polite">
           <span>{{ String(normalizedIndex + 1).padStart(2, '0') }} / {{ String(showcaseProducts.length).padStart(2, '0') }}</span>
           <strong>{{ activeProduct.name }}</strong>
         </div>
-        <button type="button" aria-label="Sản phẩm tiếp theo" @click="selectProduct(1)">→</button>
+        <button type="button" aria-label="Next product" @click="selectProduct(1)">→</button>
       </div>
 
 
-      <dl class="product-turntable__specs" aria-label="Thông số sản phẩm nổi bật">
+      <dl class="product-turntable__specs" aria-label="Featured product specs">
         <div v-for="spec in activeSpecs" :key="spec[0]">
           <dt>{{ spec[0] }}</dt>
           <dd>{{ spec[1] }}</dd>
@@ -99,7 +99,7 @@ function setProduct(index) {
       </dl>
     </div>
 
-    <div v-if="showcaseProducts.length > 1" class="product-turntable__rail" aria-label="Chọn sản phẩm bán chạy">
+    <div v-if="showcaseProducts.length > 1" class="product-turntable__rail" aria-label="Select a bestseller">
       <button
         v-for="(product, index) in showcaseProducts"
         :key="product.catalogKey"

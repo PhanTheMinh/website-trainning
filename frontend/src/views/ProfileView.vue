@@ -89,10 +89,10 @@ async function logout() {
 <template>
   <main class="profile-page">
     <section class="section profile-section">
-      <RouterLink class="profile-back" to="/">← Quay lại trang chủ</RouterLink>
+      <RouterLink class="profile-back" to="/">← Back to home</RouterLink>
 
       <div v-if="sessionLoading" class="profile-empty">
-        <h3>Đang tải hồ sơ...</h3>
+        <h3>Loading profile...</h3>
       </div>
 
       <div v-else-if="currentUser" class="account-dashboard">
@@ -105,14 +105,13 @@ async function logout() {
           <form class="profile-form account-profile-card" @submit.prevent="saveProfile">
             <div class="account-card__heading">
               <div>
-                <p class="account-card__eyebrow">Thông tin cá nhân</p>
-                <h2>Hồ sơ tài khoản</h2>
+                <h2>Account profile</h2>
               </div>
-              <span class="account-profile-card__badge">Đã xác thực</span>
+              <span class="account-profile-card__badge">Verified</span>
             </div>
 
             <div class="field">
-              <label for="profile-name">Họ và tên</label>
+              <label for="profile-name">Full name</label>
               <input
                 id="profile-name"
                 v-model="profileForm.full_name"
@@ -132,7 +131,7 @@ async function logout() {
             </div>
 
             <div class="field">
-              <label for="profile-address">Địa chỉ</label>
+              <label for="profile-address">Address</label>
               <input
                 id="profile-address"
                 v-model="profileForm.address"
@@ -141,7 +140,7 @@ async function logout() {
             </div>
 
             <div class="field">
-              <label for="profile-phone">Số điện thoại</label>
+              <label for="profile-phone">Phone number</label>
               <input
                 id="profile-phone"
                 v-model="profileForm.phone"
@@ -151,7 +150,7 @@ async function logout() {
 
             <div class="account-profile-card__actions">
               <button class="account-button account-button--primary" type="submit" :disabled="profileLoading">
-                {{ profileLoading ? 'Đang lưu...' : 'Lưu thông tin' }}
+                {{ profileLoading ? 'Saving...' : 'Save profile' }}
               </button>
               <button
                 class="account-button account-button--quiet"
@@ -159,7 +158,7 @@ async function logout() {
                 :disabled="logoutLoading"
                 @click="logout"
               >
-                {{ logoutLoading ? 'Đang đăng xuất...' : 'Đăng xuất' }}
+                {{ logoutLoading ? 'Signing out...' : 'Sign out' }}
               </button>
             </div>
 
@@ -175,15 +174,15 @@ async function logout() {
         <section class="seller-card" aria-labelledby="seller-card-title">
           <div class="seller-card__icon" aria-hidden="true"></div>
           <div class="seller-card__copy">
-            <h2 id="seller-card-title">Bán hàng</h2>
-            <p>Quản lý shop và sản phẩm.</p>
+            <h2 id="seller-card-title">Selling</h2>
+            <p>Manage your shop, products and shipping.</p>
           </div>
           <div class="seller-card__actions">
             <RouterLink class="seller-card__action" :to="{ name: 'my-shop' }">
-              Quản lý shop
+              Manage shop
             </RouterLink>
-            <RouterLink class="seller-card__action seller-card__action--quiet" :to="{ name: 'my-products' }">
-              Sản phẩm
+            <RouterLink class="seller-card__action seller-card__action--quiet" :to="{ name: 'management' }">
+              Management
               <span class="seller-card__arrow" aria-hidden="true"></span>
             </RouterLink>
           </div>
@@ -191,12 +190,12 @@ async function logout() {
       </div>
 
       <div v-else class="profile-empty">
-        <h3>Đăng nhập để quản lý tài khoản</h3>
+        <h3>Sign in to manage your account</h3>
         <p>
-          Bạn cần đăng nhập trước khi xem và cập nhật thông tin tài khoản.
+          Sign in to view and update your account information.
         </p>
         <button type="button" @click="emit('open-auth')">
-          Đăng nhập / Đăng ký
+          Sign in / Sign up
         </button>
       </div>
     </section>

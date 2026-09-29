@@ -90,7 +90,7 @@ const pageNumbers = computed(() => {
     .filter((page) => total <= 7 || page === 1 || page === total || Math.abs(page - current) <= 1)
 })
 const canConfirmPermanentDelete = computed(() => (
-  permanentPhrase.value.trim().toLocaleUpperCase('vi') === 'XÓA'
+  permanentPhrase.value.trim().toLocaleUpperCase('en') === 'DELETE'
 ))
 
 function updateQuery(patch) {
@@ -139,8 +139,8 @@ async function loadTrash(state = routeState.value) {
     }
 
     error.value = requestError.status === 401
-      ? 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'
-      : requestError.message || 'Không thể tải Thùng rác.'
+      ? 'Your session has expired. Please sign in again.'
+      : requestError.message || 'Could not load the trash.'
   } finally {
     if (currentRequest === requestSequence) {
       loading.value = false
@@ -193,7 +193,7 @@ function formatPrice(product) {
 
 function formatDeletedAt(value) {
   const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? 'Không rõ' : dateFormatter.format(date)
+  return Number.isNaN(date.getTime()) ? 'Unknown' : dateFormatter.format(date)
 }
 
 function restoreScroll(top) {
@@ -228,13 +228,13 @@ async function restoreProduct(product) {
     const response = await restoreDeletedProduct(product.id)
     notice.value = {
       type: response.warning ? 'warning' : 'success',
-      message: response.warning || `Đã khôi phục “${product.title}” về danh sách sản phẩm.`
+      message: response.warning || `Restored “${product.title}” to the product list.`
     }
     await refreshAfterRemoval(scrollTop)
   } catch (requestError) {
     notice.value = {
       type: 'error',
-      message: requestError.message || 'Không thể khôi phục sản phẩm.'
+      message: requestError.message || 'Could not restore the product.'
     }
   } finally {
     actionProductId.value = null
@@ -305,12 +305,12 @@ async function confirmPermanentDelete() {
     permanentPhrase.value = ''
     notice.value = {
       type: 'success',
-      message: `Đã xóa vĩnh viễn “${product.title}”.`
+      message: `Permanently deleted “${product.title}”.`
     }
     await refreshAfterRemoval(scrollTop)
   } catch (requestError) {
     permanentError.value = requestError.message ||
-      'Không thể xóa vĩnh viễn sản phẩm.'
+      'Could not permanently delete the product.'
   } finally {
     actionProductId.value = null
   }
@@ -351,26 +351,15 @@ onBeforeUnmount(() => {
   <main class="profile-page product-trash-page">
     <section class="section profile-section product-trash-section">
       <div v-if="sessionLoading" class="profile-empty">
-        <h3>Đang kiểm tra phiên đăng nhập...</h3>
+        <h3>Checking session...</h3>
       </div>
 
       <div v-else-if="currentUser" class="product-trash-shell">
         <header class="product-trash-hero">
-          <div>
-            <RouterLink class="seller-breadcrumb" :to="{ name: 'my-products' }">
-              Quản lý sản phẩm <span aria-hidden="true">/</span> Thùng rác
-            </RouterLink>
-            <p class="account-card__eyebrow">Kho lưu tạm</p>
-            <h1>Thùng rác sản phẩm</h1>
-            <p>
-              Khôi phục sản phẩm để bán lại, hoặc xóa vĩnh viễn khi bạn chắc chắn
-              không còn cần dữ liệu và hình ảnh liên quan.
-            </p>
-          </div>
-          <div class="product-trash-hero__signal">
-            <strong>{{ pagination.totalItems }}</strong>
-            <span>SẢN PHẨM ĐÃ XÓA</span>
-          </div>
+          <h1>Product trash</h1>
+          <RouterLink class="seller-breadcrumb" :to="{ name: 'my-products' }">
+            ← Manage products
+          </RouterLink>
         </header>
 
         <p
@@ -385,70 +374,69 @@ onBeforeUnmount(() => {
         <section class="product-trash-content" :aria-busy="loading">
           <div class="product-trash-tools">
             <div>
-              <p class="account-card__eyebrow">Đã xóa</p>
-              <h2>{{ pagination.totalItems }} sản phẩm trong Thùng rác</h2>
+              <h2>{{ pagination.totalItems }} products in trash</h2>
             </div>
             <form class="product-trash-search" @submit.prevent="submitSearch">
-              <label class="sr-only" for="trash-search">Tìm sản phẩm đã xóa</label>
+              <label class="sr-only" for="trash-search">Search deleted products</label>
               <input
                 id="trash-search"
                 v-model="draftSearch"
                 type="search"
-                placeholder="Tìm theo tên sản phẩm"
+                placeholder="Search by product name"
                 :disabled="loading || Boolean(actionProductId)"
               />
-              <button type="submit" :disabled="loading || Boolean(actionProductId)">Tìm</button>
+              <button type="submit" :disabled="loading || Boolean(actionProductId)">Search</button>
               <button
                 v-if="routeState.search"
                 class="product-trash-search__clear"
                 type="button"
                 :disabled="loading || Boolean(actionProductId)"
                 @click="clearSearch"
-              >Xóa lọc</button>
+              >Clear filter</button>
             </form>
           </div>
 
           <div v-if="isInitialLoading" class="product-trash-loading" role="status">
-            <span>Đang tải sản phẩm đã xóa...</span>
+            <span>Loading deleted products...</span>
             <i v-for="index in 4" :key="index"></i>
           </div>
 
           <div v-else-if="error && items.length" class="my-products-refresh-error" role="alert">
             <span>{{ error }}</span>
-            <button type="button" :disabled="loading" @click="loadTrash()">Thử lại</button>
+            <button type="button" :disabled="loading" @click="loadTrash()">Try again</button>
           </div>
 
           <div v-else-if="error && !items.length" class="my-products-state my-products-state--error">
             <div class="my-products-state__mark" aria-hidden="true">!</div>
-            <div><h3>Không thể tải Thùng rác</h3><p>{{ error }}</p></div>
-            <button class="account-button account-button--quiet" type="button" :disabled="loading" @click="loadTrash()">Thử lại</button>
+            <div><h3>Could not load trash</h3><p>{{ error }}</p></div>
+            <button class="account-button account-button--quiet" type="button" :disabled="loading" @click="loadTrash()">Try again</button>
           </div>
 
           <div v-else-if="!items.length" class="product-trash-empty">
             <div aria-hidden="true">✓</div>
-            <h3>{{ routeState.search ? 'Không tìm thấy sản phẩm đã xóa' : 'Thùng rác đang trống' }}</h3>
+            <h3>{{ routeState.search ? 'No deleted products found' : 'Trash is empty' }}</h3>
             <p>
               {{ routeState.search
-                ? 'Hãy thử từ khóa khác hoặc xóa bộ lọc.'
-                : 'Các sản phẩm bạn xóa mềm sẽ xuất hiện tại đây.' }}
+                ? 'Try another search term or clear the filter.'
+                : 'Soft-deleted products will appear here.' }}
             </p>
-            <button v-if="routeState.search" type="button" @click="clearSearch">Hiển thị tất cả</button>
-            <RouterLink v-else :to="{ name: 'my-products' }">Về danh sách sản phẩm</RouterLink>
+            <button v-if="routeState.search" type="button" @click="clearSearch">Show all</button>
+            <RouterLink v-else :to="{ name: 'my-products' }">Back to product list</RouterLink>
           </div>
 
           <div v-else class="product-trash-list" :class="{ 'is-updating': loading }" role="list">
             <article v-for="product in items" :key="product.id" class="product-trash-card" role="listitem">
               <div class="product-trash-card__media">
-                <img v-if="productImageUrl(product)" :src="productImageUrl(product)" :alt="`Ảnh ${product.title}`" />
+                <img v-if="productImageUrl(product)" :src="productImageUrl(product)" :alt="`Image of ${product.title}`" />
                 <span v-else aria-hidden="true">SB</span>
               </div>
               <div class="product-trash-card__identity">
-                <span>{{ product.category?.name || 'Chưa phân loại' }}</span>
+                <span>{{ product.category?.name || 'Uncategorized' }}</span>
                 <h3>{{ product.title }}</h3>
-                <small>Đã xóa lúc {{ formatDeletedAt(product.deleted_at) }}</small>
+                <small>Deleted on {{ formatDeletedAt(product.deleted_at) }}</small>
               </div>
               <div class="product-trash-card__metric">
-                <small>Giá trước khi xóa</small>
+                <small>Price before deletion</small>
                 <strong>{{ formatPrice(product) }}</strong>
               </div>
               <div class="product-trash-card__actions">
@@ -458,20 +446,20 @@ onBeforeUnmount(() => {
                   :disabled="Boolean(actionProductId)"
                   @click="restoreProduct(product)"
                 >
-                  {{ actionProductId === product.id ? 'Đang xử lý...' : 'Khôi phục' }}
+                  {{ actionProductId === product.id ? 'Processing...' : 'Restore' }}
                 </button>
                 <button
                   class="product-trash-permanent"
                   type="button"
                   :disabled="Boolean(actionProductId)"
                   @click="openPermanentDialog(product, $event)"
-                >Xóa vĩnh viễn</button>
+                >Permanently delete</button>
               </div>
             </article>
           </div>
 
-          <nav v-if="items.length && pagination.totalPages > 1" class="my-products-pagination" aria-label="Phân trang Thùng rác">
-            <button type="button" aria-label="Trang trước" :disabled="loading || !pagination.hasPreviousPage" @click="goToPage(pagination.currentPage - 1)">←</button>
+          <nav v-if="items.length && pagination.totalPages > 1" class="my-products-pagination" aria-label="Trash pagination">
+            <button type="button" aria-label="Previous page" :disabled="loading || !pagination.hasPreviousPage" @click="goToPage(pagination.currentPage - 1)">←</button>
             <button
               v-for="page in pageNumbers"
               :key="page"
@@ -489,8 +477,8 @@ onBeforeUnmount(() => {
       </div>
 
       <div v-else class="profile-empty">
-        <h3>Đăng nhập để mở Thùng rác</h3>
-        <button type="button" @click="emit('open-auth')">Đăng nhập / Đăng ký</button>
+        <h3>Sign in to view the trash</h3>
+        <button type="button" @click="emit('open-auth')">Sign in / Sign up</button>
       </div>
     </section>
 
@@ -506,14 +494,14 @@ onBeforeUnmount(() => {
         @keydown.tab="trapPermanentDialogFocus"
       >
         <div class="product-delete-modal__icon" aria-hidden="true">!</div>
-        <p class="account-card__eyebrow">Không thể hoàn tác</p>
-        <h2 id="permanent-delete-title">Xóa vĩnh viễn sản phẩm?</h2>
+        <p class="account-card__eyebrow">Cannot be undone</p>
+        <h2 id="permanent-delete-title">Permanently delete this product?</h2>
         <p>
-          “{{ permanentDialog.title }}” cùng ảnh và dữ liệu phiên bản liên quan
-          sẽ bị xóa khỏi hệ thống. Thao tác này không thể khôi phục.
+          “{{ permanentDialog.title }}” and its images and variant data
+          will be removed from the system. This cannot be undone.
         </p>
         <label for="permanent-delete-phrase">
-          Nhập <strong>XÓA</strong> để xác nhận
+          Type <strong>DELETE</strong> to confirm
         </label>
         <input
           id="permanent-delete-phrase"
@@ -524,9 +512,9 @@ onBeforeUnmount(() => {
         />
         <p v-if="permanentError" class="product-delete-modal__error" role="alert">{{ permanentError }}</p>
         <div class="product-delete-modal__actions">
-          <button type="button" :disabled="Boolean(actionProductId)" @click="closePermanentDialog">Hủy</button>
+          <button type="button" :disabled="Boolean(actionProductId)" @click="closePermanentDialog">Cancel</button>
           <button class="product-delete-modal__confirm" type="submit" :disabled="!canConfirmPermanentDelete || Boolean(actionProductId)">
-            {{ actionProductId ? 'Đang xóa...' : 'Xóa vĩnh viễn' }}
+            {{ actionProductId ? 'Deleting...' : 'Permanently delete' }}
           </button>
         </div>
         </form>

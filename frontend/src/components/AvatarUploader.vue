@@ -103,13 +103,13 @@ function handleFileSelected(event) {
   }
 
   if (!allowedTypes.has(file.type)) {
-    errorMessage.value = 'Chỉ chấp nhận ảnh JPG, PNG hoặc WebP.'
+    errorMessage.value = 'Only JPG, PNG or WebP images are accepted.'
     resetInput()
     return
   }
 
   if (file.size > maximumFileSize) {
-    errorMessage.value = 'Ảnh đại diện không được vượt quá 2 MB.'
+    errorMessage.value = 'Profile photo must not exceed 2 MB.'
     resetInput()
     return
   }
@@ -134,9 +134,9 @@ async function saveAvatar() {
     revokePreview()
     resetInput()
     imageLoadFailed.value = false
-    successMessage.value = 'Ảnh đại diện đã được cập nhật.'
+    successMessage.value = 'Profile photo updated.'
   } catch (error) {
-    errorMessage.value = `${error.message}. Ảnh đại diện hiện tại vẫn được giữ nguyên.`
+    errorMessage.value = `${error.message}. Your current profile photo was kept.`
   } finally {
     uploading.value = false
   }
@@ -156,10 +156,10 @@ onBeforeUnmount(revokePreview)
   <section class="avatar-editor" aria-labelledby="avatar-editor-title">
     <div class="avatar-editor__heading">
       <div>
-        <p class="account-card__eyebrow">Ảnh đại diện</p>
-        <h2 id="avatar-editor-title">Hình ảnh tài khoản</h2>
+        <p class="account-card__eyebrow">Profile photo</p>
+        <h2 id="avatar-editor-title">Account photo</h2>
       </div>
-      <span class="avatar-editor__status">Công khai</span>
+      <span class="avatar-editor__status">Public</span>
     </div>
 
     <div class="avatar-editor__content">
@@ -168,7 +168,7 @@ onBeforeUnmount(revokePreview)
           <img
             v-if="displayedAvatarUrl"
             :src="displayedAvatarUrl"
-            :alt="`Ảnh đại diện của ${currentUser.full_name}`"
+            :alt="`Profile photo of ${currentUser.full_name}`"
             @error="imageLoadFailed = true"
           />
           <span v-else>{{ initials }}</span>
@@ -178,7 +178,7 @@ onBeforeUnmount(revokePreview)
           class="avatar-editor__camera"
           type="button"
           :disabled="uploading"
-          aria-label="Chọn ảnh đại diện mới"
+          aria-label="Choose a new profile photo"
           @click="openFilePicker"
         >
           <span class="avatar-editor__camera-icon" aria-hidden="true"></span>
@@ -186,14 +186,14 @@ onBeforeUnmount(revokePreview)
       </div>
 
       <div class="avatar-editor__copy">
-        <h3>{{ selectedFile ? 'Ảnh xem trước' : currentUser.full_name }}</h3>
+        <h3>{{ selectedFile ? 'Image preview' : currentUser.full_name }}</h3>
         <p>
           {{ selectedFile
-            ? 'Kiểm tra ảnh trước khi lưu thay đổi.'
-            : 'Một ảnh rõ nét giúp tài khoản của bạn dễ nhận biết hơn.'
+            ? 'Review the image before saving.'
+            : 'A clear photo makes your account easier to recognize.'
           }}
         </p>
-        <small>Chấp nhận JPG, PNG hoặc WebP — dung lượng tối đa 2 MB.</small>
+        <small>JPG, PNG or WebP; maximum size 2 MB.</small>
       </div>
     </div>
 
@@ -218,7 +218,7 @@ onBeforeUnmount(revokePreview)
         :disabled="uploading"
         @click="openFilePicker"
       >
-        {{ selectedFile ? 'Chọn ảnh khác' : 'Thay đổi ảnh đại diện' }}
+        {{ selectedFile ? 'Choose another photo' : 'Change profile photo' }}
       </button>
 
       <button
@@ -228,7 +228,7 @@ onBeforeUnmount(revokePreview)
         :disabled="uploading"
         @click="cancelSelection"
       >
-        Hủy
+        Cancel
       </button>
 
       <button
@@ -238,7 +238,7 @@ onBeforeUnmount(revokePreview)
         :disabled="uploading"
         @click="saveAvatar"
       >
-        {{ uploading ? 'Đang lưu ảnh...' : 'Lưu ảnh đại diện' }}
+        {{ uploading ? 'Saving photo...' : 'Save profile photo' }}
       </button>
     </div>
 

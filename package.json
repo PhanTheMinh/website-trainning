@@ -39,7 +39,8 @@
     "morgan": "^1.11.0",
     "multer": "^2.2.0",
     "mysql2": "^3.22.5",
-    "sequelize": "^6.37.8"
+    "sequelize": "^6.37.8",
+    "uuid": "^11.1.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

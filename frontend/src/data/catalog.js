@@ -3,23 +3,23 @@ export { categories } from './categories.js'
 export const sortOptions = Object.freeze([
   {
     value: 'name-asc',
-    label: 'Tên A–Z'
+    label: 'Name: A–Z'
   },
   {
     value: 'name-desc',
-    label: 'Tên Z–A'
+    label: 'Name: Z–A'
   },
   {
     value: 'featured',
-    label: 'Bán chạy / nổi bật'
+    label: 'Featured'
   },
   {
     value: 'price-asc',
-    label: 'Giá tăng dần'
+    label: 'Price: low to high'
   },
   {
     value: 'price-desc',
-    label: 'Giá giảm dần'
+    label: 'Price: high to low'
   }
 ])
 
@@ -75,8 +75,9 @@ export function sortProducts(productList, sortKey = 'name-asc') {
 }
 
 export function formatCurrency(value) {
-  return new Intl.NumberFormat('vi-VN', {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'VND'
+    currency: 'VND',
+    currencyDisplay: 'code'
   }).format(value)
 }

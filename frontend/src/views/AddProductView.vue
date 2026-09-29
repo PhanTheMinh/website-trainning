@@ -70,7 +70,7 @@ const optionDefinitions = computed(() => {
   if (colors.length) {
     definitions.push({
       code: 'color',
-      name: 'Màu sắc',
+      name: 'Color',
       values: colors
     })
   }
@@ -78,7 +78,7 @@ const optionDefinitions = computed(() => {
   if (sizes.length) {
     definitions.push({
       code: 'size',
-      name: 'Kích thước',
+      name: 'Size',
       values: sizes
     })
   }
@@ -161,7 +161,7 @@ function variantLabel(variant) {
     (option) => variant.option_values[option.code]
   )
 
-  return labels.length ? labels.join(' / ') : 'Phiên bản mặc định'
+  return labels.length ? labels.join(' / ') : 'Default variant'
 }
 
 function clearPreview(image) {
@@ -175,13 +175,13 @@ function clearAllPreviews() {
 
 function validateIncomingImages(incomingFiles, currentCount, maximum, label) {
   if (currentCount + incomingFiles.length > maximum) {
-    return `${label} chỉ được có tối đa ${maximum} ảnh.`
+    return `${label} can have at most ${maximum} images.`
   }
   if (incomingFiles.some((file) => !allowedImageTypes.has(file.type))) {
-    return 'Ảnh phải có định dạng JPEG, PNG, WebP hoặc AVIF.'
+    return 'Images must be JPEG, PNG, WebP or AVIF.'
   }
   if (incomingFiles.some((file) => file.size > 5 * 1024 * 1024)) {
-    return 'Mỗi ảnh không được vượt quá 5 MB.'
+    return 'Each image must be 5 MB or smaller.'
   }
   return ''
 }
@@ -195,7 +195,7 @@ function handleImagesSelected(event) {
   }
 
   if (selectedImages.value.length + incomingFiles.length > 12) {
-    formError.value = 'Chỉ được chọn tối đa 12 ảnh cho một sản phẩm.'
+    formError.value = 'You can select at most 12 images per product.'
     event.target.value = ''
     return
   }
@@ -205,7 +205,7 @@ function handleImagesSelected(event) {
   )
 
   if (invalidType) {
-    formError.value = 'Ảnh phải có định dạng JPEG, PNG, WebP hoặc AVIF.'
+    formError.value = 'Images must be JPEG, PNG, WebP or AVIF.'
     event.target.value = ''
     return
   }
@@ -215,7 +215,7 @@ function handleImagesSelected(event) {
   )
 
   if (oversizedFile) {
-    formError.value = 'Mỗi ảnh không được vượt quá 5 MB.'
+    formError.value = 'Each image must be 5 MB or smaller.'
     event.target.value = ''
     return
   }
@@ -255,7 +255,7 @@ function handleVariantImagesSelected(event, variant) {
   )
 
   if (totalVariantImages + incomingFiles.length > 48) {
-    formError.value = 'Mỗi lần lưu được tải lên tối đa 48 ảnh variant.'
+    formError.value = 'You can upload at most 48 variant images per save.'
     event.target.value = ''
     return
   }
@@ -317,7 +317,7 @@ async function loadCategories() {
     const response = await getCategories()
     categories.value = response.data
   } catch {
-    categoriesError.value = 'Không thể tải danh mục. Vui lòng thử lại.'
+    categoriesError.value = 'Could not load categories. Please try again.'
   } finally {
     categoriesLoading.value = false
   }
@@ -332,69 +332,66 @@ function validateForm() {
     : Number(form.value.weight_grams)
 
   if (title.length < 3) {
-    return { message: 'Tiêu đề phải có ít nhất 3 ký tự.', target: '#product-title' }
+    return { message: 'Title must have at least 3 characters.', target: '#product-title' }
   }
 
   if (description.length < 10) {
-    return { message: 'Mô tả phải có ít nhất 10 ký tự.', target: '#product-description' }
+    return { message: 'Description must have at least 10 characters.', target: '#product-description' }
   }
 
   if (!form.value.category_id) {
-    return { message: 'Vui lòng chọn danh mục.', target: '#product-category' }
+    return { message: 'Please select a category.', target: '#product-category' }
   }
 
   if (form.value.brand.trim().length > 100) {
-    return { message: 'Thương hiệu không được vượt quá 100 ký tự.', target: '#product-brand' }
+    return { message: 'Brand must be at most 100 characters.', target: '#product-brand' }
   }
 
   if (!Number.isFinite(price) || price <= 0) {
-    return { message: 'Giá mặc định phải là số lớn hơn 0.', target: '#product-price' }
+    return { message: 'Reference price must be greater than zero.', target: '#product-price' }
   }
 
   if (
     weight !== null &&
     (!Number.isInteger(weight) || weight <= 0)
   ) {
-    return { message: 'Cân nặng phải là số nguyên lớn hơn 0.', target: '#product-weight' }
+    return { message: 'Weight must be a positive integer.', target: '#product-weight' }
   }
 
   if (
     !selectedImages.value.length &&
     !enabledVariants.value.some((variant) => variant.images.length)
   ) {
-    return { message: 'Vui lòng chọn ít nhất một ảnh chung hoặc ảnh variant.', target: '#product-images' }
+    return { message: 'Select at least one shared or variant image.', target: '#product-images' }
   }
 
   if (
     optionDefinitions.value.some((option) => option.values.length > 20)
   ) {
-    return { message: 'Mỗi loại tùy chọn chỉ được có tối đa 20 giá trị.', target: '#product-colors' }
+    return { message: 'Each option type can have at most 20 values.', target: '#product-colors' }
   }
 
   if (!enabledVariants.value.length) {
-    return { message: 'Phải có ít nhất một phiên bản đang bán.', target: '#product-colors' }
+    return { message: 'At least one active variant is required.', target: '#product-colors' }
   }
 
   for (const variant of enabledVariants.value) {
-    const stock = Number(variant.stock_quantity)
-    const variantPrice = variant.price === ''
-      ? null
-      : Number(variant.price)
+    const stockValue = String(variant.stock_quantity).trim()
+    const priceValue = String(variant.price).trim()
+    const stock = stockValue === '' ? Number.NaN : Number(stockValue)
+    const variantPrice = priceValue === '' ? Number.NaN : Number(priceValue)
 
     if (!Number.isInteger(stock) || stock < 0 || stock > 1000000000) {
       return {
-        message: `Tồn kho của “${variantLabel(variant)}” phải là số nguyên từ 0 trở lên.`,
-        target: '.variant-table input[type="number"]'
+        message: `Stock for “${variantLabel(variant)}” must be a non-negative integer.`,
+        target: '.variant-stock-input'
       }
     }
 
-    if (
-      variantPrice !== null &&
-      (!Number.isFinite(variantPrice) || variantPrice <= 0)
-    ) {
+    if (!Number.isFinite(variantPrice) || variantPrice <= 0) {
       return {
-        message: `Giá của “${variantLabel(variant)}” phải lớn hơn 0 hoặc để trống.`,
-        target: '.variant-table input[type="number"]'
+        message: `Price for “${variantLabel(variant)}” is required and must be greater than zero.`,
+        target: '.variant-price-input'
       }
     }
   }
@@ -420,7 +417,7 @@ async function submitProduct() {
     const variantPayload = enabledVariants.value.map((variant) => ({
       sku: variant.sku.trim() || null,
       option_values: variant.option_values,
-      price: variant.price === '' ? null : Number(variant.price),
+      price: Number(variant.price),
       stock_quantity: Number(variant.stock_quantity),
       image_index: null,
       images: variant.images.map((image) => {
@@ -476,28 +473,21 @@ onMounted(loadCategories)
   <main class="product-create-page">
     <section class="section product-create-section">
       <header class="seller-form-hero">
-        <div>
-          <RouterLink class="seller-breadcrumb" :to="{ name: 'my-products' }">
-            Quản lý sản phẩm <span aria-hidden="true">/</span> Thêm mới
-          </RouterLink>
-          <p class="eyebrow">Khu vực người bán</p>
-          <h1>Thêm sản phẩm</h1>
-          <p>Thông tin, hình ảnh và tồn kho sản phẩm.</p>
-        </div>
-        <div class="seller-form-hero__signal" aria-hidden="true">
-          <strong>01</strong><span>SẢN PHẨM MỚI</span>
-        </div>
+        <h1>Add product</h1>
+        <RouterLink class="seller-breadcrumb" :to="{ name: 'my-products' }">
+          ← Manage products
+        </RouterLink>
       </header>
 
       <div v-if="sessionLoading" class="profile-empty">
-        <h3>Đang kiểm tra phiên đăng nhập...</h3>
+        <h3>Checking session...</h3>
       </div>
 
       <div v-else-if="!currentUser" class="profile-empty">
-        <h3>Đăng nhập để thêm sản phẩm</h3>
-        <p>Bạn cần đăng nhập trước khi đăng sản phẩm bán.</p>
+        <h3>Sign in to add products</h3>
+        <p>Sign in before listing a product for sale.</p>
         <button type="button" @click="emit('open-auth')">
-          Đăng nhập / Đăng ký
+          Sign in / Sign up
         </button>
       </div>
 
@@ -512,28 +502,28 @@ onMounted(loadCategories)
           <section class="seller-form-section" aria-labelledby="new-product-basic">
             <div class="seller-form-section__heading">
               <span aria-hidden="true">01</span>
-              <div><p>Thông tin cơ bản</p><h2 id="new-product-basic">Nội dung sản phẩm</h2></div>
+              <div><p>Basic information</p><h2 id="new-product-basic">Product details</h2></div>
             </div>
           <div class="field">
-            <label for="product-title">Tiêu đề *</label>
+            <label for="product-title">Title *</label>
             <input
               id="product-title"
               v-model="form.title"
               :disabled="submitting"
               maxlength="180"
-              placeholder="Ví dụ: Giày chạy bộ Nike Pegasus 41"
+              placeholder="Example: Nike Pegasus 41 running shoes"
               required
             />
           </div>
 
           <div class="field">
-            <label for="product-description">Mô tả *</label>
+            <label for="product-description">Description *</label>
             <textarea
               id="product-description"
               v-model="form.description"
               :disabled="submitting"
               maxlength="5000"
-              placeholder="Mô tả tình trạng, chất liệu và điểm nổi bật..."
+              placeholder="Describe condition, materials and highlights..."
               rows="7"
               required
             ></textarea>
@@ -543,10 +533,10 @@ onMounted(loadCategories)
           <section class="seller-form-section" aria-labelledby="new-product-media">
             <div class="seller-form-section__heading">
               <span aria-hidden="true">02</span>
-              <div><p>Hình ảnh</p><h2 id="new-product-media">Thư viện sản phẩm</h2></div>
+              <div><p>Images</p><h2 id="new-product-media">Product gallery</h2></div>
             </div>
           <div class="field">
-            <label for="product-images">Hình ảnh chung *</label>
+            <label for="product-images">Shared images *</label>
             <input
               id="product-images"
               ref="imageInput"
@@ -557,8 +547,8 @@ onMounted(loadCategories)
               @change="handleImagesSelected"
             />
             <small>
-              Có thể chọn nhiều ảnh cùng lúc. JPEG, PNG, WebP hoặc AVIF; tối đa
-              12 ảnh chung, mỗi ảnh 5 MB. Ảnh variant được quản lý riêng bên dưới.
+              You can select multiple JPEG, PNG, WebP or AVIF images; maximum
+              12 shared images, 5 MB each. Variant images are managed separately below.
             </small>
           </div>
 
@@ -570,7 +560,7 @@ onMounted(loadCategories)
               :class="{ 'is-primary': index === 0 }"
             >
               <span v-if="index === 0" class="product-image-preview__badge">
-                Ảnh chính
+                Main image
               </span>
               <img :src="image.previewUrl" :alt="image.file.name" />
               <div class="product-image-preview__actions">
@@ -581,7 +571,7 @@ onMounted(loadCategories)
                   :disabled="submitting"
                   @click="setPrimaryImage(image.id)"
                 >
-                  Đặt làm ảnh chính
+                  Set as main image
                 </button>
                 <button
                   class="product-image-preview__remove-action"
@@ -589,7 +579,7 @@ onMounted(loadCategories)
                   :disabled="submitting"
                   @click="removeImage(image.id)"
                 >
-                  Xóa ảnh
+                  Delete image
                 </button>
               </div>
             </article>
@@ -599,32 +589,32 @@ onMounted(loadCategories)
           <section class="variant-builder seller-form-section" aria-labelledby="variant-heading">
             <div class="variant-builder__heading">
               <div>
-                <p class="eyebrow">Phiên bản</p>
-                <h2 id="variant-heading">Màu sắc, kích thước và tồn kho</h2>
+                <p class="eyebrow">Variants</p>
+                <h2 id="variant-heading">Colors, sizes and stock</h2>
               </div>
-              <strong>{{ enabledVariants.length }} phiên bản · {{ totalStock }} sản phẩm</strong>
+              <strong>{{ enabledVariants.length }} variants · {{ totalStock }} products</strong>
             </div>
 
             <div class="variant-option-inputs">
               <div class="field">
-                <label for="product-colors">Màu sắc</label>
+                <label for="product-colors">Color</label>
                 <input
                   id="product-colors"
                   v-model="form.colors"
                   :disabled="submitting"
-                  placeholder="Đen, Trắng, Xanh"
+                  placeholder="Black, White, Blue"
                 />
-                <small>Phân tách bằng dấu phẩy.</small>
+                <small>Separate values with commas.</small>
               </div>
               <div class="field">
-                <label for="product-sizes">Kích thước</label>
+                <label for="product-sizes">Size</label>
                 <input
                   id="product-sizes"
                   v-model="form.sizes"
                   :disabled="submitting"
-                  placeholder="S, M, L hoặc 39, 40, 41"
+                  placeholder="S, M, L or 39, 40, 41"
                 />
-                <small>Để trống cả hai ô để dùng variant mặc định.</small>
+                <small>Leave both fields blank to use the default variant.</small>
               </div>
             </div>
 
@@ -632,12 +622,12 @@ onMounted(loadCategories)
               <table class="variant-table">
                 <thead>
                   <tr>
-                    <th>Bán</th>
-                    <th>Tổ hợp</th>
+                    <th>Selling</th>
+                    <th>Combination</th>
                     <th>SKU</th>
-                    <th>Giá riêng</th>
-                    <th>Tồn kho *</th>
-                    <th>Thư viện ảnh riêng</th>
+                    <th>Variant price *</th>
+                    <th>Stock *</th>
+                    <th>Variant gallery</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -651,7 +641,7 @@ onMounted(loadCategories)
                         v-model="variant.enabled"
                         type="checkbox"
                         :disabled="submitting || variants.length === 1"
-                        :aria-label="`Bán ${variantLabel(variant)}`"
+                        :aria-label="`Sell ${variantLabel(variant)}`"
                       />
                     </td>
                     <th scope="row">{{ variantLabel(variant) }}</th>
@@ -660,33 +650,38 @@ onMounted(loadCategories)
                         v-model="variant.sku"
                         :disabled="submitting || !variant.enabled"
                         maxlength="64"
-                        placeholder="Tự sinh nếu trống"
+                        placeholder="Auto-generate if blank"
                       />
                     </td>
                     <td>
                       <input
                         v-model="variant.price"
+                        class="variant-price-input"
                         :disabled="submitting || !variant.enabled"
-                        min="1"
-                        step="1000"
-                        type="number"
-                        placeholder="Kế thừa"
+                        :aria-label="`Enter variant price for ${variantLabel(variant)}`"
+                        inputmode="numeric"
+                        pattern="[0-9]*"
+                        placeholder="Enter price"
+                        type="text"
+                        required
                       />
                     </td>
                     <td>
                       <input
                         v-model="variant.stock_quantity"
+                        class="variant-stock-input"
                         :disabled="submitting || !variant.enabled"
-                        min="0"
-                        step="1"
-                        type="number"
+                        :aria-label="`Enter stock for ${variantLabel(variant)}`"
+                        inputmode="numeric"
+                        pattern="[0-9]*"
+                        type="text"
                         required
                       />
                     </td>
                     <td>
                       <input
                         accept="image/jpeg,image/png,image/webp,image/avif"
-                        :aria-label="`Chọn ảnh cho ${variantLabel(variant)}`"
+                        :aria-label="`Choose images for ${variantLabel(variant)}`"
                         :disabled="submitting || !variant.enabled"
                         multiple
                         type="file"
@@ -696,13 +691,13 @@ onMounted(loadCategories)
                         <figure v-for="(image, imageIndex) in variant.images" :key="image.id">
                           <img :src="image.previewUrl" :alt="image.file.name" />
                           <span class="variant-image-order-actions">
-                            <button type="button" :aria-label="`Đưa ảnh ${imageIndex + 1} sang trái`" :disabled="submitting || imageIndex === 0" @click="moveVariantImage(variant, image.id, -1)">←</button>
-                            <button type="button" :aria-label="`Đưa ảnh ${imageIndex + 1} sang phải`" :disabled="submitting || imageIndex === variant.images.length - 1" @click="moveVariantImage(variant, image.id, 1)">→</button>
+                            <button type="button" :aria-label="`Move image ${imageIndex + 1} left`" :disabled="submitting || imageIndex === 0" @click="moveVariantImage(variant, image.id, -1)">←</button>
+                            <button type="button" :aria-label="`Move image ${imageIndex + 1} right`" :disabled="submitting || imageIndex === variant.images.length - 1" @click="moveVariantImage(variant, image.id, 1)">→</button>
                           </span>
-                          <button type="button" :aria-label="`Xóa ảnh ${imageIndex + 1} của ${variantLabel(variant)}`" :disabled="submitting" @click="removeVariantImage(variant, image.id)">×</button>
+                          <button type="button" :aria-label="`Delete image ${imageIndex + 1} of ${variantLabel(variant)}`" :disabled="submitting" @click="removeVariantImage(variant, image.id)">×</button>
                         </figure>
                       </div>
-                      <small>Tối đa 8 ảnh riêng.</small>
+                      <small>Maximum 8 variant images.</small>
                     </td>
                   </tr>
                 </tbody>
@@ -714,10 +709,10 @@ onMounted(loadCategories)
         <aside class="product-form-sidebar seller-form-sidebar">
           <div class="seller-form-sidebar__heading">
             <span aria-hidden="true">03</span>
-            <div><p>Thiết lập bán hàng</p><h2>Sẵn sàng lên kệ</h2></div>
+            <div><p>Selling settings</p><h2>Ready to sell</h2></div>
           </div>
           <div class="field seller-side-section">
-            <label for="product-category">Danh mục *</label>
+            <label for="product-category">Category *</label>
             <select
               id="product-category"
               v-model="form.category_id"
@@ -725,7 +720,7 @@ onMounted(loadCategories)
               required
             >
               <option value="" disabled>
-                {{ categoriesLoading ? 'Đang tải danh mục...' : 'Chọn danh mục' }}
+                {{ categoriesLoading ? 'Loading categories...' : 'Select a category' }}
               </option>
               <option
                 v-for="category in categories"
@@ -738,24 +733,24 @@ onMounted(loadCategories)
             <div v-if="categoriesError" class="product-category-error" role="alert">
               <span>{{ categoriesError }}</span>
               <button type="button" :disabled="categoriesLoading" @click="loadCategories">
-                Thử lại
+                Try again
               </button>
             </div>
           </div>
 
           <div class="field seller-side-section">
-            <label for="product-brand">Thương hiệu</label>
+            <label for="product-brand">Brand</label>
             <input
               id="product-brand"
               v-model="form.brand"
               :disabled="submitting"
               maxlength="100"
-              placeholder="Ví dụ: Nike"
+              placeholder="Example: Nike"
             />
           </div>
 
           <div class="field seller-side-section">
-            <label for="product-price">Giá mặc định (VNĐ) *</label>
+            <label for="product-price">Reference price (VND) *</label>
             <input
               id="product-price"
               v-model="form.price"
@@ -766,11 +761,11 @@ onMounted(loadCategories)
               type="number"
               required
             />
-            <small>Variant để trống giá sẽ kế thừa giá này.</small>
+            <small>This is the product reference price; every variant still needs its own price.</small>
           </div>
 
           <div class="field seller-side-section">
-            <label for="product-weight">Cân nặng vận chuyển (gram)</label>
+            <label for="product-weight">Shipping weight (grams)</label>
             <input
               id="product-weight"
               v-model="form.weight_grams"
@@ -783,8 +778,8 @@ onMounted(loadCategories)
           </div>
 
           <p class="variant-publish-note">
-            Sản phẩm sẽ được đăng khi có ít nhất một variant hợp lệ. Variant
-            tồn kho 0 vẫn được đăng nhưng sẽ hiển thị hết hàng.
+            The product will be published when it has at least one valid variant. A variant with
+            zero stock can still be published but will appear sold out.
           </p>
 
           <p v-if="formError" class="result error" role="alert">
@@ -794,9 +789,9 @@ onMounted(loadCategories)
           <div class="product-edit-actions seller-form-actions">
             <button class="product-submit-button" type="submit" :disabled="submitting">
               <span v-if="submitting" class="seller-button-spinner" aria-hidden="true"></span>
-              {{ submitting ? 'Đang đăng sản phẩm...' : 'Đăng sản phẩm' }}
+              {{ submitting ? 'Publishing product...' : 'Publish product' }}
             </button>
-            <RouterLink class="product-edit-cancel" :to="{ name: 'my-products' }">Hủy</RouterLink>
+            <RouterLink class="product-edit-cancel" :to="{ name: 'my-products' }">Cancel</RouterLink>
           </div>
         </aside>
       </form>

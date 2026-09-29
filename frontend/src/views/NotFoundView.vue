@@ -2,11 +2,11 @@
   <main class="not-found-page">
     <section class="section not-found-panel">
       <p class="eyebrow">404</p>
-      <h1>Không tìm thấy trang</h1>
-      <p>Đường dẫn này không tồn tại hoặc đã được thay đổi.</p>
+      <h1>Page not found</h1>
+      <p>This page does not exist or its address has changed.</p>
       <div class="not-found-actions">
-        <RouterLink class="primary-action" to="/">Về trang chủ</RouterLink>
-        <RouterLink class="secondary-action" to="/products">Xem sản phẩm</RouterLink>
+        <RouterLink class="primary-action" to="/">Back to home</RouterLink>
+        <RouterLink class="secondary-action" to="/products">Shop products</RouterLink>
       </div>
     </section>
   </main>

@@ -65,7 +65,7 @@ async function createProductWithVariant(data, index) {
         product_id: product.id,
         sku: `MY-PRODUCTS-${testRun}-${index}`,
         variant_key: 'default',
-        price: data.variantPrice ?? null,
+        price: data.variantPrice ?? data.price,
         image_url: null,
         stock_quantity: data.stock,
         status: 'active',

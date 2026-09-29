@@ -9,6 +9,10 @@ const props = defineProps({
   disabled: {
     type: Boolean,
     default: false
+  },
+  itemLabel: {
+    type: String,
+    default: 'products'
   }
 })
 
@@ -49,17 +53,17 @@ function changePage(page) {
 <template>
   <nav
     v-if="pagination.totalPages > 1"
-    class="catalog-pagination"
-    :aria-label="`Phân trang, ${pagination.totalItems} sản phẩm`"
+    class="rs-pagination"
+    :aria-label="`Pagination, ${pagination.totalItems} ${itemLabel}`"
   >
     <p>
-      Trang <strong>{{ pagination.currentPage }}</strong>/{{ pagination.totalPages }}
-      <span>· {{ pagination.totalItems }} sản phẩm</span>
+      Page <strong>{{ pagination.currentPage }}</strong> of {{ pagination.totalPages }}
+      <span>· {{ pagination.totalItems }} {{ itemLabel }}</span>
     </p>
     <div>
       <button
         type="button"
-        aria-label="Trang trước"
+        aria-label="Previous page"
         :disabled="disabled || !pagination.hasPreviousPage"
         @click="changePage(pagination.currentPage - 1)"
       >
@@ -72,7 +76,7 @@ function changePage(page) {
           type="button"
           :class="{ 'is-active': token === pagination.currentPage }"
           :aria-current="token === pagination.currentPage ? 'page' : undefined"
-          :aria-label="`Trang ${token}`"
+          :aria-label="`Page ${token}`"
           :disabled="disabled"
           @click="changePage(token)"
         >
@@ -81,7 +85,7 @@ function changePage(page) {
       </template>
       <button
         type="button"
-        aria-label="Trang sau"
+        aria-label="Next page"
         :disabled="disabled || !pagination.hasNextPage"
         @click="changePage(pagination.currentPage + 1)"
       >
@@ -90,3 +94,14 @@ function changePage(page) {
     </div>
   </nav>
 </template>
+
+<style scoped>
+.rs-pagination { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; border-top: 1px solid var(--rs-border); margin-top: 32px; padding-top: 24px; }
+.rs-pagination p { font-size: 13px; color: var(--rs-muted); margin: 0; }
+.rs-pagination p span { margin-left: 8px; }
+.rs-pagination > div { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.rs-pagination button { background: transparent; color: var(--rs-text); border: 1px solid transparent; border-radius: 6px; min-width: 44px; min-height: 44px; font-size: 14px; padding: 6px; }
+.rs-pagination button:hover:not(:disabled) { border-color: var(--rs-border); }
+.rs-pagination button.is-active { background: var(--rs-primary); color: var(--rs-on-primary); }
+@media (max-width: 640px) { .rs-pagination { justify-content: center; } .rs-pagination p { width: 100%; text-align: center; } .rs-pagination p span { display: none; } .rs-pagination button { min-width: 36px; } }
+</style>

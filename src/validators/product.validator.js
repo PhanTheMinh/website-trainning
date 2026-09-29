@@ -32,8 +32,7 @@ const productVariantSchema = Joi.object({
         .positive()
         .precision(2)
         .max(9999999999.99)
-        .allow(null)
-        .default(null),
+        .required(),
     stock_quantity: Joi.number()
         .integer()
         .min(0)

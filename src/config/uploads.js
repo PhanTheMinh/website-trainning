@@ -20,10 +20,19 @@ const productsDirectory = path.join(
 
 const productsUrlPrefix = '/uploads/products'
 
+const checkoutAddressesDirectory = path.join(
+    uploadsRoot,
+    'checkout-addresses'
+)
+
+const checkoutAddressesUrlPrefix = '/uploads/checkout-addresses'
+
 module.exports = {
     uploadsRoot,
     avatarsDirectory,
     avatarsUrlPrefix,
     productsDirectory,
-    productsUrlPrefix
+    productsUrlPrefix,
+    checkoutAddressesDirectory,
+    checkoutAddressesUrlPrefix
 }

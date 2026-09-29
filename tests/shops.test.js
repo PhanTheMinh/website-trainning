@@ -6,6 +6,7 @@ const {
     Category,
     Product,
     ProductVariant,
+    ShippingMethod,
     Shop,
     User
 } = require('../src/models')
@@ -53,7 +54,7 @@ async function createShopProduct(owner, targetShop, suffix) {
         product_id: createdProduct.id,
         sku: `SHOP-${testRun}-${suffix}`,
         variant_key: 'default',
-        price: null,
+        price: 750000,
         image_url: null,
         stock_quantity: 5,
         status: 'active',
@@ -222,5 +223,305 @@ describe('Public and seller shop APIs', function () {
         })
 
         expect(response.status).toBe(409)
+    })
+
+    it('creates, lists and toggles shop-owned shipping methods', async function () {
+        const agent = await authenticatedAgent()
+        const otherAgent = await authenticatedAgent(otherEmail)
+        const unauthorized = await request(app)
+            .get('/api/shops/me/shipping-methods')
+
+        expect(unauthorized.status).toBe(401)
+
+        const created = await agent
+            .post('/api/shops/me/shipping-methods')
+            .send({
+                name: 'Vận chuyển hỏa tốc',
+                description: 'Giao nhanh trong nội thành.',
+                status: 'active'
+            })
+
+        expect(created.status).toBe(201)
+        expect(created.body.data).toMatchObject({
+            name: 'Vận chuyển hỏa tốc',
+            code: 'van-chuyen-hoa-toc',
+            status: 'active'
+        })
+
+        const duplicate = await agent
+            .post('/api/shops/me/shipping-methods')
+            .send({
+                name: 'Vận chuyển hỏa tốc'
+            })
+        expect(duplicate.status).toBe(409)
+
+        const list = await agent.get('/api/shops/me/shipping-methods')
+        expect(list.status).toBe(200)
+        expect(list.body.data).toHaveLength(1)
+        expect(list.body.pagination).toMatchObject({
+            page: 1,
+            limit: 8,
+            totalItems: 1,
+            totalPages: 1
+        })
+
+        const searched = await agent.get(
+            '/api/shops/me/shipping-methods?page=1&limit=1&q=hỏa+tốc&status=active&sort=name_desc'
+        )
+        expect(searched.status).toBe(200)
+        expect(searched.body.data).toHaveLength(1)
+        expect(searched.body.data[0].name).toBe('Vận chuyển hỏa tốc')
+        expect(searched.body.pagination.limit).toBe(1)
+
+        const invalidList = await agent.get(
+            '/api/shops/me/shipping-methods?page=0&sort=unknown'
+        )
+        expect(invalidList.status).toBe(400)
+
+        const hiddenFromOtherOwner = await otherAgent
+            .patch(`/api/shops/me/shipping-methods/${created.body.data.id}/status`)
+            .send({ status: 'inactive' })
+        expect(hiddenFromOtherOwner.status).toBe(404)
+
+        const toggled = await agent
+            .patch(`/api/shops/me/shipping-methods/${created.body.data.id}/status`)
+            .send({ status: 'inactive' })
+        expect(toggled.status).toBe(200)
+        expect(toggled.body.data.status).toBe('inactive')
+
+        const storedMethod = await ShippingMethod.findByPk(created.body.data.id)
+        expect(storedMethod.status).toBe('inactive')
+    })
+
+    it('creates and isolates shipping countries by shop', async function () {
+        const agent = await authenticatedAgent()
+        const otherAgent = await authenticatedAgent(otherEmail)
+
+        const invalid = await agent.post('/api/shops/me/countries').send({
+            name: 'Việt Nam',
+            country_code: 'VNM',
+            phone_code: '84'
+        })
+        expect(invalid.status).toBe(400)
+
+        const vietnam = await agent.post('/api/shops/me/countries').send({
+            name: 'Việt Nam',
+            country_code: 'vn',
+            phone_code: '+84'
+        })
+        const unitedStates = await agent.post('/api/shops/me/countries').send({
+            name: 'Hoa Kỳ',
+            country_code: 'US',
+            phone_code: '+1'
+        })
+        const unitedKingdom = await otherAgent.post('/api/shops/me/countries').send({
+            name: 'Vương quốc Anh',
+            country_code: 'GB',
+            phone_code: '+44'
+        })
+
+        expect(vietnam.status).toBe(201)
+        expect(vietnam.body.data).toMatchObject({
+            name: 'Việt Nam',
+            country_code: 'VN',
+            phone_code: '+84'
+        })
+        expect(unitedStates.status).toBe(201)
+        expect(unitedKingdom.status).toBe(201)
+
+        const duplicate = await agent.post('/api/shops/me/countries').send({
+            name: 'Vietnam',
+            country_code: 'VN',
+            phone_code: '+84'
+        })
+        expect(duplicate.status).toBe(409)
+
+        const list = await agent.get('/api/shops/me/countries')
+        expect(list.status).toBe(200)
+        expect(list.body.data).toHaveLength(2)
+        expect(list.body.data.map((country) => country.country_code)).not.toContain('GB')
+        expect(list.body.pagination).toMatchObject({
+            page: 1,
+            limit: 8,
+            totalItems: 2,
+            totalPages: 1
+        })
+
+        const searched = await agent.get(
+            '/api/shops/me/countries?page=1&limit=1&q=Việt'
+        )
+        expect(searched.status).toBe(200)
+        expect(searched.body.data).toHaveLength(1)
+        expect(searched.body.data[0].country_code).toBe('VN')
+        expect(searched.body.pagination.limit).toBe(1)
+    })
+
+    it('creates rates for multiple countries and protects ownership', async function () {
+        const agent = await authenticatedAgent()
+        const otherAgent = await authenticatedAgent(otherEmail)
+        const countries = (await agent.get('/api/shops/me/countries')).body.data
+        const otherCountries = (await otherAgent.get('/api/shops/me/countries')).body.data
+
+        const method = await agent.post('/api/shops/me/shipping-methods').send({
+            name: 'Vận chuyển tiêu chuẩn'
+        })
+        const otherMethod = await otherAgent.post('/api/shops/me/shipping-methods').send({
+            name: 'Other standard shipping'
+        })
+        expect(method.status).toBe(201)
+        expect(otherMethod.status).toBe(201)
+
+        const invalidRange = await agent.post('/api/shops/me/shipping-rates').send({
+            shipping_method_id: method.body.data.id,
+            country_ids: [countries[0].id],
+            min_delivery_days: 7,
+            max_delivery_days: 3,
+            fixed_fee: 30000
+        })
+        expect(invalidRange.status).toBe(400)
+
+        const foreignCountry = await otherAgent.post('/api/shops/me/shipping-rates').send({
+            shipping_method_id: otherMethod.body.data.id,
+            country_ids: [countries[0].id],
+            min_delivery_days: 3,
+            max_delivery_days: 7,
+            fixed_fee: 30000
+        })
+        expect(foreignCountry.status).toBe(404)
+
+        const created = await agent.post('/api/shops/me/shipping-rates').send({
+            shipping_method_id: method.body.data.id,
+            country_ids: countries.map((country) => country.id),
+            min_delivery_days: 3,
+            max_delivery_days: 7,
+            fixed_fee: 30000
+        })
+        expect(created.status).toBe(201)
+        expect(created.body.data).toMatchObject({
+            shipping_method_id: method.body.data.id,
+            min_delivery_days: 3,
+            max_delivery_days: 7,
+            fixed_fee: 30000
+        })
+        expect(created.body.data.countries).toHaveLength(2)
+
+        const list = await agent.get(
+            '/api/shops/me/shipping-rates?page=1&limit=1&q=tiêu+chuẩn'
+        )
+        expect(list.status).toBe(200)
+        expect(list.body.data).toHaveLength(1)
+        expect(list.body.data[0].shipping_method.name)
+            .toBe('Vận chuyển tiêu chuẩn')
+        expect(list.body.pagination).toMatchObject({
+            page: 1,
+            limit: 1,
+            totalItems: 1,
+            totalPages: 1
+        })
+
+        const detail = await agent.get(
+            `/api/shops/me/shipping-rates/${created.body.data.id}`
+        )
+        expect(detail.status).toBe(200)
+        expect(detail.body.data.countries).toHaveLength(2)
+
+        const hiddenDetail = await otherAgent.get(
+            `/api/shops/me/shipping-rates/${created.body.data.id}`
+        )
+        expect(hiddenDetail.status).toBe(404)
+
+        const hiddenUpdate = await otherAgent
+            .patch(`/api/shops/me/shipping-rates/${created.body.data.id}`)
+            .send({
+                shipping_method_id: otherMethod.body.data.id,
+                country_ids: otherCountries.map((country) => country.id),
+                min_delivery_days: 2,
+                max_delivery_days: 5,
+                fixed_fee: 45000
+            })
+        expect(hiddenUpdate.status).toBe(404)
+
+        const updated = await agent
+            .patch(`/api/shops/me/shipping-rates/${created.body.data.id}`)
+            .send({
+                shipping_method_id: method.body.data.id,
+                country_ids: countries.map((country) => country.id),
+                min_delivery_days: 2,
+                max_delivery_days: 5,
+                fixed_fee: 45000
+            })
+        expect(updated.status).toBe(200)
+        expect(updated.body.data).toMatchObject({
+            min_delivery_days: 2,
+            max_delivery_days: 5,
+            fixed_fee: 45000
+        })
+        expect(updated.body.data.countries).toHaveLength(2)
+
+        const fastMethod = await agent.post('/api/shops/me/shipping-methods').send({
+            name: 'Vận chuyển nhanh'
+        })
+        expect(fastMethod.status).toBe(201)
+        const fastRate = await agent.post('/api/shops/me/shipping-rates').send({
+            shipping_method_id: fastMethod.body.data.id,
+            country_ids: [countries.find((country) => country.country_code === 'VN').id],
+            min_delivery_days: 1,
+            max_delivery_days: 2,
+            fixed_fee: 15000
+        })
+        expect(fastRate.status).toBe(201)
+
+        const quote = await request(app)
+            .post('/api/checkout/shipping-options')
+            .send({ shop_ids: [shop.id], country_code: 'VN' })
+        expect(quote.status).toBe(200)
+        expect(quote.body.data.destinations.map((country) => country.country_code))
+            .toContain('VN')
+        expect(quote.body.data.shipping[0].options.map((option) => option.fixed_fee))
+            .toEqual([15000, 45000])
+
+        const unsupported = await request(app)
+            .post('/api/checkout/shipping-options')
+            .send({ shop_ids: [shop.id], country_code: 'AU' })
+        expect(unsupported.status).toBe(200)
+        expect(unsupported.body.data.shipping[0].options).toHaveLength(0)
+
+        const invalidQuote = await request(app)
+            .post('/api/checkout/shipping-options')
+            .send({ shop_ids: [shop.id], country_code: 'USA' })
+        expect(invalidQuote.status).toBe(400)
+
+        const overlapping = await agent.post('/api/shops/me/shipping-rates').send({
+            shipping_method_id: method.body.data.id,
+            country_ids: [countries[0].id],
+            min_delivery_days: 2,
+            max_delivery_days: 4,
+            fixed_fee: 50000
+        })
+        expect(overlapping.status).toBe(409)
+
+        const cannotDeleteUsedCountry = await agent.delete(
+            `/api/shops/me/countries/${countries[0].id}`
+        )
+        expect(cannotDeleteUsedCountry.status).toBe(409)
+
+        const otherList = await otherAgent.get('/api/shops/me/shipping-rates')
+        expect(otherList.status).toBe(200)
+        expect(otherList.body.data).toHaveLength(0)
+        expect(otherList.body.pagination.totalItems).toBe(0)
+        expect(otherCountries).toHaveLength(1)
+
+        const deletedRate = await agent.delete(
+            `/api/shops/me/shipping-rates/${created.body.data.id}`
+        )
+        expect(deletedRate.status).toBe(204)
+        expect((await agent.delete(
+            `/api/shops/me/shipping-rates/${fastRate.body.data.id}`
+        )).status).toBe(204)
+
+        const deletedCountry = await agent.delete(
+            `/api/shops/me/countries/${countries[0].id}`
+        )
+        expect(deletedCountry.status).toBe(204)
     })
 })
