@@ -1,4 +1,5 @@
 <script setup>
+import BackButton from '../components/BackButton.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { getCategories } from '../services/categoryService.js'
@@ -474,9 +475,7 @@ onMounted(loadCategories)
     <section class="section product-create-section">
       <header class="seller-form-hero">
         <h1>Add product</h1>
-        <RouterLink class="seller-breadcrumb" :to="{ name: 'my-products' }">
-          ← Manage products
-        </RouterLink>
+        <BackButton :fallback="{ name: 'my-products' }" />
       </header>
 
       <div v-if="sessionLoading" class="profile-empty">

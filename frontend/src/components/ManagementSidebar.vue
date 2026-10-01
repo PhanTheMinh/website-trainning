@@ -1,4 +1,5 @@
 <script setup>
+import BackButton from './BackButton.vue'
 import { ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import UiIcon from './ui/UiIcon.vue'
@@ -20,7 +21,7 @@ watch(() => route.fullPath, () => { open.value = false })
     <div class="rs-seller-sidebar__heading"><span>Seller workspace</span><button class="rs-seller-sidebar__toggle" type="button" :aria-expanded="open" aria-controls="seller-navigation" aria-label="Toggle seller navigation" @click="open = !open"><UiIcon :name="open ? 'close' : 'menu'" /></button></div>
     <nav id="seller-navigation" class="rs-seller-sidebar__nav" :class="{ 'is-open': open }" aria-label="Seller navigation">
       <RouterLink v-for="item in links" :key="item.route" :to="{ name: item.route }" :class="{ 'is-selected': item.active.includes(route.name) }" :aria-current="item.active.includes(route.name) ? 'page' : undefined"><UiIcon :name="item.icon" :size="18" />{{ item.label }}</RouterLink>
-      <RouterLink class="rs-seller-sidebar__back" to="/products">Back to shopping<UiIcon name="arrow" :size="16" /></RouterLink>
+      <div class="rs-seller-sidebar__back"><BackButton :fallback="{ name: 'products' }" /></div>
     </nav>
   </aside>
 </template>

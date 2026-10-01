@@ -1,4 +1,5 @@
 <script setup>
+import BackButton from '../components/BackButton.vue'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import ManagementSidebar from '../components/ManagementSidebar.vue'
@@ -167,7 +168,7 @@ onBeforeUnmount(() => window.clearTimeout(searchTimer))
         <ManagementSidebar />
         <div class="setting-create-content">
           <header class="setting-create-header">
-            <RouterLink :to="{ name: 'shipping-setting-list' }">← Settings list</RouterLink>
+            <BackButton :fallback="{ name: 'shipping-setting-list' }" />
             <h1>Add setting</h1>
           </header>
 

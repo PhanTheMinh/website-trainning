@@ -37,6 +37,18 @@ function restoreCart() {
   }
 }
 
+function orderCreated({ items, cartSnapshot }) {
+  const eligible = new Set(cartSnapshot)
+  const remaining = new Map(items.map(item => [`${item.product_id}:${item.variant_id}`, item.quantity]))
+  cartItems.value = cartItems.value.filter(item => {
+    const key = `${item.product_id || item.id}:${item.variant_id}`
+    const count = remaining.get(key) || 0
+    if (!eligible.has(item) || !count) return true
+    remaining.set(key, count - 1)
+    return false
+  })
+}
+
 function showCartNotice(message) {
   cartNotice.value = message
   window.clearTimeout(cartNoticeTimer)
@@ -336,10 +348,12 @@ onBeforeUnmount(() => {
         @begin-checkout="beginCheckout"
       />
       <component
-        v-else-if="route.name === 'checkout'"
+        v-else-if="['checkout', 'order-detail', 'checkout-orders'].includes(route.name)"
         :is="Component"
         :current-user="currentUser"
         :session-loading="sessionLoading"
+        :cart-items="cartItems"
+        @order-created="orderCreated"
         @open-auth="openAuthPanel"
       />
       <component

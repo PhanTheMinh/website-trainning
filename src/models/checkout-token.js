@@ -6,6 +6,7 @@ const CheckoutToken = sequelize.define('CheckoutToken', {
     user_id: { type: DataTypes.BIGINT, allowNull: true },
     checkout_token: { type: DataTypes.UUID, allowNull: true, unique: true },
     request_id: { type: DataTypes.UUID, allowNull: true },
+    order_request_id: { type: DataTypes.UUID, allowNull: true },
     items: { type: DataTypes.JSON, allowNull: true },
     version: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 1 },
     shop_used_id: { type: DataTypes.BIGINT, allowNull: false },

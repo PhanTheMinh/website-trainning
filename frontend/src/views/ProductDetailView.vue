@@ -1,4 +1,5 @@
 <script setup>
+import BackButton from '../components/BackButton.vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { formatCurrency } from '../data/catalog.js'
@@ -489,9 +490,7 @@ onBeforeUnmount(() => {
 <template>
   <main class="product-detail-page">
     <section class="section">
-      <RouterLink class="profile-back" :to="backRoute">
-        ← {{ sourceShop ? `Back to ${sourceShop.name}` : sourceCategory ? `Back to ${sourceCategory.name}` : 'Back to products' }}
-      </RouterLink>
+      <BackButton :fallback="backRoute" />
 
       <p
         v-if="route.query.created === '1'"

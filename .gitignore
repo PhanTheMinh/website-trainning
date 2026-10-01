@@ -9,3 +9,4 @@ uploads/avatars/*
 src/uploads/avatars/*
 src/uploads/products/*
 frontend/public/address-data/
+.cache/street-lists/

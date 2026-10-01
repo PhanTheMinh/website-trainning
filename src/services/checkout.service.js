@@ -6,7 +6,8 @@ const {
     ShippingRate,
     Shop,
     CheckoutToken,
-    PaymentMethod
+    PaymentMethod,
+    Order
 } = require('../models')
 const { Product, ProductVariant, ProductVariantImage, ProductImage } = require('../models')
 const sequelize = require('../config/database')
@@ -243,6 +244,12 @@ function serialize(draft, calculation, payment) {
         ...calculation }
 }
 async function read(draft, transaction) {
+    if (draft.is_completed) {
+        const orders = await Order.findAll({ where: { checkout_id: draft.id, user_id: draft.user_id }, attributes: ['id'], transaction })
+        return { ...serialize(draft, { items: parse(draft.items, []), destinations: [], shipping: [], issues: [],
+            total: parse(draft.total) }, { options: [], selected: parse(draft.payment_method, null), issue: null }),
+        order_ids: orders.map(order => Number(order.id)) }
+    }
     const calculation = await calculate(parse(draft.items, []), parse(draft.shipping_address),
         parse(draft.shipping_method).selected_rates || {}, transaction)
     const payment = await resolvePayment(
@@ -298,7 +305,8 @@ async function updateCheckout(userId, token, data) {
             Object.prototype.hasOwnProperty.call(data, 'payment_method_id') && selectedId !== null
         )
         await draft.update({ items: calculation.items, shipping_address: JSON.stringify(address),
-            shipping_method: JSON.stringify({ selected_rates: selections }), total: JSON.stringify(calculation.total),
+            shipping_method: JSON.stringify({ selected_rates: selections,
+                quoted_rates: calculation.shipping.map(group => ({ shop_id: group.shop_id, ...group.selected })) }), total: JSON.stringify(calculation.total),
             payment_method: payment.selected,
             version: draft.version + 1 }, { transaction })
         return serialize(draft, calculation, payment)
@@ -313,6 +321,8 @@ async function listCheckouts(userId, { page, limit }) {
         updated_at: draft.updatedAt, item_count: parse(draft.items, []).reduce((sum, item) => sum + item.quantity, 0) })) }
 }
 module.exports = {
+    calculate,
+    resolvePayment,
     getPaymentOptions,
     getShippingOptions,
     createCheckout,

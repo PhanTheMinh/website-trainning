@@ -1,4 +1,5 @@
 <script setup>
+import BackButton from '../components/BackButton.vue'
 import {
   computed,
   nextTick,
@@ -7,7 +8,6 @@ import {
   watch
 } from 'vue'
 import {
-  RouterLink,
   onBeforeRouteLeave,
   useRoute,
   useRouter
@@ -705,9 +705,7 @@ onBeforeUnmount(() => {
     <section class="section product-create-section">
       <header class="seller-form-hero product-edit-heading">
         <h1>Edit product</h1>
-        <RouterLink class="seller-breadcrumb" :to="{ name: 'my-products' }">
-          ← Manage products
-        </RouterLink>
+        <BackButton :fallback="{ name: 'my-products' }" />
       </header>
 
       <div v-if="sessionLoading || loading" class="product-edit-loading" role="status">

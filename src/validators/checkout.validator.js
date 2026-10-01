@@ -27,13 +27,17 @@ const addressSchema = Joi.object({
     first_name: Joi.string().max(100).allow(''),
     last_name: Joi.string().max(100).allow(''),
     phone: Joi.string().max(30).allow(''),
-    email: Joi.string().max(160).allow(''),
+    email: Joi.string().max(254).allow(''),
     country_code: Joi.string().uppercase().pattern(/^[A-Z]{2}$/).allow(''),
     country_name: Joi.string().max(100).allow(''),
     province_state: Joi.string().max(100).allow(''),
     province_code: Joi.string().max(20).allow(''),
     city: Joi.string().max(100).allow(''),
-    zip_code: Joi.string().max(20).allow('')
+    zip_code: Joi.string().max(20).allow(''),
+    street: Joi.string().max(200).allow(''),
+    house_number: Joi.string().max(50).allow(''),
+    apartment: Joi.string().max(100).allow(''),
+    ward: Joi.string().max(100).allow('')
 })
 const selectionsSchema = Joi.object().pattern(
     /^[1-9]\d*$/, Joi.number().integer().positive()

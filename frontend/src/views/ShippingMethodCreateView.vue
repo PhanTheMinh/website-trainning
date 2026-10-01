@@ -1,4 +1,5 @@
 <script setup>
+import BackButton from '../components/BackButton.vue'
 import { computed, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import ManagementSidebar from '../components/ManagementSidebar.vue'
@@ -66,7 +67,7 @@ async function submitMethod() {
         <ManagementSidebar />
         <div class="method-create-content">
           <header class="method-create-header">
-            <RouterLink :to="{ name: 'shipping-methods' }">← Shipping methods</RouterLink>
+            <BackButton :fallback="{ name: 'shipping-method-list' }" />
             <h1>Add method</h1>
           </header>
           <section class="method-create-panel">

@@ -1,6 +1,7 @@
 <script setup>
+import BackButton from '../components/BackButton.vue'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { API_BASE_URL } from '../services/apiClient.js'
 import {
   getDeletedProducts,
@@ -357,9 +358,7 @@ onBeforeUnmount(() => {
       <div v-else-if="currentUser" class="product-trash-shell">
         <header class="product-trash-hero">
           <h1>Product trash</h1>
-          <RouterLink class="seller-breadcrumb" :to="{ name: 'my-products' }">
-            ← Manage products
-          </RouterLink>
+          <BackButton :fallback="{ name: 'my-products' }" />
         </header>
 
         <p
@@ -421,7 +420,7 @@ onBeforeUnmount(() => {
                 : 'Soft-deleted products will appear here.' }}
             </p>
             <button v-if="routeState.search" type="button" @click="clearSearch">Show all</button>
-            <RouterLink v-else :to="{ name: 'my-products' }">Back to product list</RouterLink>
+            <BackButton v-else :fallback="{ name: 'my-products' }" />
           </div>
 
           <div v-else class="product-trash-list" :class="{ 'is-updating': loading }" role="list">

@@ -1,4 +1,5 @@
 <script setup>
+import BackButton from '../components/BackButton.vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import PaginationNav from '../components/PaginationNav.vue'
@@ -262,9 +263,7 @@ onBeforeUnmount(() => {
 <template>
   <main class="shop-page">
     <section class="section">
-      <RouterLink class="profile-back" to="/products">
-        ← Back to all products
-      </RouterLink>
+      <BackButton :fallback="{ name: 'products' }" />
 
       <div v-if="loading && !shop" class="profile-empty" role="status">
         <h3>Loading shop...</h3>

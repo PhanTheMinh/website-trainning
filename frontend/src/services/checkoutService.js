@@ -21,3 +21,9 @@ export function createCheckout(items, requestId) {
 export function listCheckouts(page = 1) {
   return apiClient.get(`/api/checkout?page=${page}`)
 }
+export function getStreetSuggestions(address, options) {
+  return apiClient.post('/api/checkout/street-suggestions', address, options)
+}
+export function getStreetList(location, options) {
+  return apiClient.post('/api/checkout/street-list', location, options)
+}

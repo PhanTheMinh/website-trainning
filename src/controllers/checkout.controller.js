@@ -39,4 +39,16 @@ async function update(req, res, next) {
 async function list(req, res, next) {
     try { return res.json({ success: true, data: await checkoutService.listCheckouts(req.user.id, validate(listCheckoutSchema, req.query)) }) } catch (error) { return next(error) }
 }
-module.exports = { shippingOptions, create, get, update, list }
+async function streetSuggestions(req, res, next) {
+    try {
+        res.set('Cache-Control', 'no-store')
+        return res.json({ success: true, data: await require('../services/street-suggestions.service').suggestStreets(req.body) })
+    } catch (error) { return next(error) }
+}
+async function streetList(req, res, next) {
+    try {
+        res.set('Cache-Control', 'no-store')
+        return res.json({ success: true, data: await require('../services/street-list.service').getStreetList(req.body) })
+    } catch (error) { return next(error) }
+}
+module.exports = { shippingOptions, create, get, update, list, streetSuggestions, streetList }

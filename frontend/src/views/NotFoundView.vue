@@ -5,7 +5,7 @@
       <h1>Page not found</h1>
       <p>This page does not exist or its address has changed.</p>
       <div class="not-found-actions">
-        <RouterLink class="primary-action" to="/">Back to home</RouterLink>
+        <BackButton :fallback="{ name: 'home' }" />
         <RouterLink class="secondary-action" to="/products">Shop products</RouterLink>
       </div>
     </section>
@@ -13,5 +13,6 @@
 </template>
 
 <script setup>
+import BackButton from '../components/BackButton.vue'
 import { RouterLink } from 'vue-router'
 </script>

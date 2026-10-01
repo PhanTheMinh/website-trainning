@@ -1,4 +1,5 @@
 <script setup>
+import BackButton from '../components/BackButton.vue'
 import { ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import AvatarUploader from '../components/AvatarUploader.vue'
@@ -89,7 +90,7 @@ async function logout() {
 <template>
   <main class="profile-page">
     <section class="section profile-section">
-      <RouterLink class="profile-back" to="/">← Back to home</RouterLink>
+      <BackButton :fallback="{ name: 'home' }" />
 
       <div v-if="sessionLoading" class="profile-empty">
         <h3>Loading profile...</h3>

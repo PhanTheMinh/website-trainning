@@ -1,4 +1,5 @@
 <script setup>
+import BackButton from '../components/BackButton.vue'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import SellerLayout from '../layouts/SellerLayout.vue'
@@ -116,7 +117,7 @@ watch(
 
 <template>
   <SellerLayout :current-user="currentUser" :session-loading="sessionLoading" @open-auth="emit('open-auth')">
-    <RouterLink class="rs-payment-form__back rs-link" :to="{ name: 'payment-method-list' }">← Payment methods</RouterLink>
+    <BackButton :fallback="{ name: 'payment-method-list' }" />
     <PageHeader :title="editing ? 'Edit payment method' : 'Add payment method'" description="Set up cash on delivery for your shop." />
     <div v-if="loading" class="rs-payment-form__loading" role="status"><div class="rs-skeleton"></div><p>Loading payment method…</p></div>
     <EmptyState v-else-if="shopMissing" title="Create your shop first" description="Set up a shop before adding payment methods." icon="store"><RouterLink class="rs-button" :to="{ name: 'my-shop' }">Set up shop</RouterLink></EmptyState>

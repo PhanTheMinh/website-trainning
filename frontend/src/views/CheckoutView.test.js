@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createRenderer, ssrContextKey, nextTick } from 'vue'
+import { createRenderer, createSSRApp, ssrContextKey, nextTick } from 'vue'
+import { renderToString } from 'vue/server-renderer'
 import CheckoutView from './CheckoutView.vue'
 
-const mocks = vi.hoisted(() => ({ get: vi.fn(), save: vi.fn(), list: vi.fn(), cities: vi.fn(), leave: null, update: null }))
+const mocks = vi.hoisted(() => ({ get: vi.fn(), save: vi.fn(), list: vi.fn(), cities: vi.fn(), createOrder: vi.fn(), push: vi.fn(), leave: null, update: null }))
+vi.mock('../services/orderService.js', () => ({ createOrder: mocks.createOrder }))
 vi.mock('../utils/checkoutRegions.js', async importOriginal => ({
   ...await importOriginal(), getCheckoutCities: mocks.cities
 }))
@@ -11,6 +13,7 @@ vi.mock('../services/checkoutService.js', () => ({
 }))
 vi.mock('vue-router', () => ({
   useRoute: () => ({ params: { checkoutToken: 'token-a' } }),
+  useRouter: () => ({ push: mocks.push }),
   onBeforeRouteLeave: callback => { mocks.leave = callback },
   onBeforeRouteUpdate: callback => { mocks.update = callback },
   RouterLink: { template: '<span><slot /></span>' }
@@ -54,6 +57,78 @@ beforeEach(() => {
 afterEach(() => { app?.unmount(); vi.useRealTimers(); vi.unstubAllGlobals() })
 
 describe('Checkout autosave', () => {
+  it('renders the simplified address form without detailed address fields or street lookups', async () => {
+    mocks.get.mockResolvedValueOnce({ data: { ...data(1), items: [{ product_id: 1, variant_id: 2, shop_id: 10, name: 'Test shoe', quantity: 1, price: 100 }] } })
+    await mount()
+    const html = await renderToString(createSSRApp({ ...CheckoutView, setup: () => state }, { currentUser: { id: 1 }, sessionLoading: false }))
+    for (const label of ['Email *', 'Phone *', 'Country *', 'Province/State', 'City *', 'Zip Code']) expect(html).toContain(label)
+    for (const label of ['Street *', 'House number', 'Apartment / Unit', 'Ward / District', 'street-options']) expect(html).not.toContain(label)
+  })
+  const complete = version => ({ ...data(version),
+    items: [{ product_id: 1, variant_id: 2, shop_id: 10, quantity: 2, price: 100, stock_quantity: 5 }],
+    shipping_selections: { 10: 3 },
+    shipping: [{ shop_id: 10, selected: { rate_id: 3, fixed_fee: 20 }, options: [{ rate_id: 3, fixed_fee: 20 }] }],
+    payment_selection: { id: 4 }, payment_options: [{ id: 4 }],
+    total: { subtotal: 200, shipping_fee: 20, amount_due: 220 } })
+  it('creates orders from the saved checkout version and navigates to its order list', async () => {
+    mocks.get.mockResolvedValue({ data: complete(1) })
+    mocks.save.mockResolvedValue({ data: complete(2) })
+    mocks.createOrder.mockResolvedValue({ data: { orders: [{ id: 8, items: [{ product_id: 1, product_variant_id: 2, quantity: 2 }] }] } })
+    await mount()
+    state.address.street = 'New street'
+    await state.placeOrder()
+    expect(mocks.save).toHaveBeenCalledTimes(1)
+    expect(mocks.createOrder.mock.calls[0][0]).toMatchObject({ checkout_token: 'token-a', version: 2 })
+    expect(mocks.push).toHaveBeenCalledWith({ name: 'checkout-orders', params: { checkoutToken: 'token-a' } })
+    expect(state.completed).toBe(true)
+    expect(storage.size).toBe(0)
+  })
+  it('retries a lost response with the same request and prevents duplicate simultaneous submission', async () => {
+    mocks.get.mockResolvedValue({ data: complete(1) })
+    let reject
+    mocks.createOrder.mockImplementationOnce(() => new Promise((resolve, failure) => { reject = failure }))
+    await mount()
+    const submitting = state.placeOrder()
+    await settle()
+    await state.placeOrder()
+    expect(mocks.createOrder).toHaveBeenCalledTimes(1)
+    reject(new Error('Offline'))
+    await submitting
+    expect(state.uncertainOrder).toBe(true)
+    const first = { ...mocks.createOrder.mock.calls[0][0] }
+    mocks.createOrder.mockResolvedValue({ data: { orders: [] } })
+    await state.placeOrder()
+    expect(mocks.createOrder.mock.calls[1][0]).toEqual(first)
+    expect(state.uncertainOrder).toBe(false)
+  })
+  it('requires confirmation when an autosave changes the displayed quote', async () => {
+    mocks.get.mockResolvedValue({ data: complete(1) })
+    mocks.save.mockResolvedValue({ data: { ...complete(2), items: [{ ...complete(2).items[0], price: 110 }] } })
+    await mount()
+    state.address.street = 'Changed'
+    await state.placeOrder()
+    expect(mocks.createOrder).not.toHaveBeenCalled()
+    expect(state.orderMessage).toContain('Review')
+  })
+  it('refreshes and re-saves a server requote without automatically creating an order', async () => {
+    mocks.get.mockResolvedValue({ data: complete(1) })
+    mocks.save.mockResolvedValue({ data: complete(2) })
+    mocks.createOrder.mockRejectedValue(Object.assign(new Error('Changed price'), { status: 409, code: 'ORDER_REQUOTE_REQUIRED' }))
+    await mount()
+    await state.placeOrder()
+    expect(mocks.createOrder).toHaveBeenCalledTimes(1)
+    expect(mocks.save).toHaveBeenCalledTimes(1)
+    expect(state.completed).toBe(false)
+    expect(state.orderMessage).toContain('No order was created')
+    expect(storage.size).toBe(0)
+  })
+  it('reopens completed checkouts without trying to place a new order', async () => {
+    mocks.get.mockResolvedValue({ data: { ...complete(3), is_completed: true, order_ids: [8] } })
+    await mount()
+    expect(state.hasOrders).toBe(true)
+    await state.placeOrder()
+    expect(mocks.createOrder).not.toHaveBeenCalled()
+  })
   it('recovers unavailable COD without losing edits and saves a cleared selection', async () => {
     mocks.get.mockResolvedValue({ data: { ...data(1), payment_options: [], payment_selection: null } })
     await mount()
@@ -90,18 +165,16 @@ describe('Checkout autosave', () => {
     expect(storage.size).toBe(1)
     expect(mocks.save).toHaveBeenCalledTimes(1)
   })
-  it('updates subtotal and order total immediately, including a large quantity, before saving finishes', async () => {
-    mocks.get.mockResolvedValueOnce({ data: { ...data(1), items: [{ product_id: 1, variant_id: 2, price: 125000, quantity: 1, stock_quantity: 9999 }], total: { subtotal: 125000, shipping_fee: 30000, amount_due: 155000 } } })
+  it('keeps checkout quantities from the saved cart without exposing quantity editing', async () => {
+    mocks.get.mockResolvedValueOnce({ data: { ...data(1), items: [{ product_id: 1, variant_id: 2, price: 125000, quantity: 2, stock_quantity: 9999 }], total: { subtotal: 250000, shipping_fee: 30000, amount_due: 280000 } } })
     await mount()
-    state.changeQuantity(state.checkoutItems[0], '5000', false)
-    expect(state.itemTotal).toBe(625000000)
-    expect(state.orderTotal).toBe(625030000)
+    expect(state.checkoutItems[0].quantity).toBe(2)
+    expect(state.itemTotal).toBe(250000)
+    expect(state.orderTotal).toBe(280000)
     expect(state.shippingReady).toBe(true)
     expect(mocks.save).not.toHaveBeenCalled()
-    state.changeQuantity(state.checkoutItems[0], '999999', false)
-    expect(state.checkoutItems[0].quantity).toBe(9999)
-    expect(state.itemTotal).toBe(1249875000)
-    expect(state.quantityNotice).toContain('9999')
+    expect(state.changeQuantity).toBeUndefined()
+    expect(state.quantityInput).toBeUndefined()
   })
   it('combines duplicate city names and postcode entries, and supports manual selections', async () => {
     await mount()
@@ -164,14 +237,16 @@ describe('Checkout autosave', () => {
     await settle()
     expect(mocks.save.mock.calls.at(-1)[1].shipping_selections).toEqual({ 1: 20 })
   })
-  it('saves changed quantities and displays totals returned by the server', async () => {
+  it('autosaves a manually entered street without changing item quantities', async () => {
     mocks.get.mockResolvedValueOnce({ data: { ...data(1), items: [{ product_id: 1, variant_id: 2, quantity: 1 }] } })
+    mocks.save.mockImplementationOnce(async (token, patch) => ({ data: { ...data(2), shipping_address: patch.shipping_address, items: [{ product_id: 1, variant_id: 2, quantity: 1 }] } }))
     await mount()
-    mocks.save.mockResolvedValueOnce({ data: { ...data(2), items: [{ product_id: 1, variant_id: 2, quantity: 3 }], total: { subtotal: 300, shipping_fee: 20, amount_due: 320 } } })
-    state.changeQuantity(state.checkoutItems[0], '3')
+    state.address.street = 'Nguyen Van Linh'
     await settle()
-    expect(mocks.save.mock.calls[0][1].items).toEqual([{ product_id: 1, variant_id: 2, quantity: 3 }])
-    expect(state.orderTotal).toBe(320)
+    await state.flush()
+    expect(mocks.save.mock.calls[0][1].shipping_address.street).toBe('Nguyen Van Linh')
+    expect(mocks.save.mock.calls[0][1].items).toBeUndefined()
+    expect(state.checkoutItems[0].quantity).toBe(1)
   })
   it('changes province options by country, resets the old selection, and autosaves the new one', async () => {
     await mount()

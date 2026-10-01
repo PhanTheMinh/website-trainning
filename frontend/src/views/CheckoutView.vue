@@ -1,15 +1,25 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { RouterLink, useRoute, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
+import { RouterLink, useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
 import { formatCurrency } from '../data/catalog.js'
 import { API_BASE_URL } from '../services/apiClient.js'
 import { getCheckoutDraft, saveCheckoutDraft, listCheckouts } from '../services/checkoutService.js'
+import { createOrder } from '../services/orderService.js'
 import { normalizeCheckoutAddress } from '../utils/checkoutAddress.js'
+import BackButton from '../components/BackButton.vue'
 import { getCheckoutRegions, getCheckoutCountry, getCheckoutProvince, getCheckoutCities } from '../utils/checkoutRegions.js'
 
-const props = defineProps({ currentUser: { type: Object, default: null }, sessionLoading: Boolean })
-defineEmits(['open-auth'])
+const props = defineProps({ currentUser: { type: Object, default: null }, sessionLoading: Boolean,
+  cartItems: { type: Array, default: () => [] } })
+const emit = defineEmits(['open-auth', 'order-created'])
 const route = useRoute()
+const router = useRouter()
+const placingOrder = ref(false)
+const uncertainOrder = ref(false)
+const orderMessage = ref('')
+const hasOrders = ref(false)
+let orderAttempt = null
+let orderCartSnapshot = []
 const checkoutItems = ref([])
 const address = ref(normalizeCheckoutAddress())
 const selectedRates = ref({})
@@ -39,7 +49,6 @@ const loadingCities = ref(false)
 const locationError = ref('')
 const manualCity = ref(false)
 const manualZip = ref(false)
-const quantityNotice = ref('')
 const failedImages = ref(new Set())
 let locationRequest = 0
 const cityNames = computed(() => [...new Set(cityOptions.value.map(city => city.name))])
@@ -97,6 +106,7 @@ watch(() => address.value.country_code, (country, previous) => {
     address.value.province_state = ''
     address.value.province_code = ''
     address.value.city = ''
+    address.value.street = ''
     address.value.zip_code = ''
     selectedRates.value = {}
   }
@@ -107,11 +117,13 @@ watch(() => address.value.province_state, (province, previous) => {
     manualZip.value = false
     address.value.province_code = getCheckoutProvince(address.value.country_code, province)?.code || ''
     address.value.city = ''
+    address.value.street = ''
     address.value.zip_code = ''
   }
 }, { flush: 'sync' })
 watch(() => address.value.city, (city, previous) => {
   if (!hydrating && ready.value && city !== previous) {
+    address.value.street = ''
     manualZip.value = false
     address.value.zip_code = zipOptions.value.length === 1 ? zipOptions.value[0] : ''
   }
@@ -170,22 +182,6 @@ function chooseShipping(id, rateId) {
   selectedRates.value = { ...selectedRates.value, [id]: rateId }
   flush()
 }
-function quantityLimit(item) {
-  return Number.isFinite(Number(item.stock_quantity)) ? Math.max(1, Math.min(10000, Number(item.stock_quantity))) : 10000
-}
-function changeQuantity(item, value, saveNow = true) {
-  const quantity = Number(value)
-  if (!Number.isSafeInteger(quantity) || quantity < 1) return
-  const limit = quantityLimit(item)
-  quantityNotice.value = quantity > limit ? `Quantity adjusted to the available limit of ${limit} for ${item.name || 'this product'}.` : ''
-  item.quantity = Math.min(quantity, limit)
-  queueSave()
-  if (saveNow) flush()
-}
-function quantityInput(item, event, saveNow = false) {
-  changeQuantity(item, event.target.value, saveNow)
-  if (saveNow || Number(event.target.value) > quantityLimit(item)) event.target.value = item.quantity
-}
 function applyResult(data, form = false) {
   if (scope) scope.savedItems = JSON.stringify(data.items.map(({ product_id, variant_id, quantity }) => ({ product_id, variant_id, quantity })))
   checkoutItems.value = data.items
@@ -196,6 +192,7 @@ function applyResult(data, form = false) {
   total.value = data.total
   shippingError.value = data.issues.join(' ')
   completed.value = data.is_completed
+  hasOrders.value = Boolean(data.order_ids?.length) || hasOrders.value
   if (form) {
     hydrating = true
     address.value = normalizeCheckoutAddress(data.shipping_address)
@@ -268,7 +265,7 @@ async function flush(keepalive = false) {
   return s.pending ? flush(keepalive) : true
 }
 function queueSave() {
-  if (hydrating || !ready.value || !scope || completed.value) return
+  if (hydrating || !ready.value || !scope || completed.value || uncertainOrder.value) return
   const items = checkoutItems.value.map(({ product_id, variant_id, quantity }) => ({ product_id, variant_id, quantity }))
   scope.pending = { shipping_address: { ...address.value }, shipping_selections: { ...selectedRates.value },
     payment_method_id: selectedPaymentId.value,
@@ -280,10 +277,86 @@ function queueSave() {
 }
 watch([address, selectedRates, selectedPaymentId], queueSave, { deep: true, flush: 'sync' })
 
+function visibleQuote() {
+  return JSON.stringify({ items: checkoutItems.value.map(item => [item.variant_id, item.quantity, item.price]),
+    shipping: shopGroups.value.map(group => selectedForShop(group.shop_id)), total: orderTotal.value })
+}
+async function placeOrder() {
+  if (placingOrder.value || completed.value || !scope || scope.blocked) return
+  placingOrder.value = true
+  orderMessage.value = ''
+  const s = scope
+  const attemptKey = `runstore-order-request:${s.userId}:${s.token}`
+  try {
+    if (!uncertainOrder.value) {
+      const displayed = visibleQuote()
+      if (!await flush() || scope !== s) return
+      if (displayed !== visibleQuote()) {
+        orderMessage.value = 'Prices or shipping changed. Review the updated total, then click Checkout again.'
+        return
+      }
+      if (!shippingReady.value || !selectedPaymentId.value) {
+        orderMessage.value = 'Choose shipping for every shop and a payment method before checkout.'
+        return
+      }
+      let stored
+      try { stored = JSON.parse(localStorage.getItem(attemptKey) || 'null') } catch { /* Use a new key. */ }
+      orderAttempt = { checkout_token: s.token, version: s.version, request_id: stored?.request_id || crypto.randomUUID() }
+      orderCartSnapshot = [...props.cartItems]
+      try { localStorage.setItem(attemptKey, JSON.stringify(orderAttempt)) } catch { /* In-memory retries remain safe. */ }
+    }
+    const response = await createOrder(orderAttempt)
+    if (scope !== s) return
+    completed.value = true
+    hasOrders.value = true
+    uncertainOrder.value = false
+    s.pending = null
+    backup(s)
+    try { localStorage.removeItem(attemptKey) } catch { /* Successful server state is authoritative. */ }
+    emit('order-created', { cartSnapshot: orderCartSnapshot,
+      items: response.data.orders.flatMap(order => order.items.map(item => ({
+        product_id: item.product_id, variant_id: item.product_variant_id, quantity: item.quantity }))) })
+    await router.push({ name: 'checkout-orders', params: { checkoutToken: s.token } })
+  } catch (failure) {
+    if (scope !== s) return
+    if (completed.value) {
+      orderMessage.value = 'Your orders were created. Use View your orders to open the details.'
+      return
+    }
+    if (failure.status && failure.status < 500) {
+      uncertainOrder.value = false
+      try { localStorage.removeItem(attemptKey) } catch { /* No retained ambiguous request. */ }
+    }
+    if (failure.code === 'ORDER_REQUOTE_REQUIRED') {
+      orderMessage.value = 'Prices or shipping changed. No order was created. Review the updated quote, then click Checkout again.'
+      try {
+        const latest = await getCheckoutDraft(s.token)
+        if (scope !== s) return
+        s.version = latest.data.version
+        applyResult(latest.data, true)
+        queueSave()
+        await flush()
+      } catch { orderMessage.value += ' Could not refresh the quote. Reload before continuing.'; s.blocked = true }
+    } else if (!failure.status || failure.status >= 500) {
+      uncertainOrder.value = true
+      orderMessage.value = 'We could not confirm the result. Retry safely with the same request; do not start a new checkout.'
+    } else {
+      uncertainOrder.value = false
+      orderMessage.value = failure.message || 'Could not create your order.'
+      if (failure.code === 'CHECKOUT_CONFLICT') s.blocked = true
+      if (['PAYMENT_METHOD_UNAVAILABLE', 'SHIPPING_METHOD_UNAVAILABLE', 'INSUFFICIENT_STOCK', 'VARIANT_UNAVAILABLE', 'PRODUCT_STOPPED'].includes(failure.code)) {
+        try {
+          const latest = await getCheckoutDraft(s.token)
+          if (scope === s) { s.version = latest.data.version; applyResult(latest.data, true) }
+        } catch { orderMessage.value += ' Reload to refresh checkout availability.' }
+      }
+    }
+  } finally { placingOrder.value = false }
+}
+
 async function load(discard = false) {
   manualCity.value = false
   manualZip.value = false
-  quantityNotice.value = ''
   locationRequest++
   cityOptions.value = []
   locationError.value = ''
@@ -291,6 +364,11 @@ async function load(discard = false) {
   ready.value = false
   const s = { userId: props.currentUser?.id, token: route.params.checkoutToken, pending: null, version: 1, blocked: false }
   scope = s
+  uncertainOrder.value = false
+  orderAttempt = null
+  orderCartSnapshot = []
+  orderMessage.value = ''
+  hasOrders.value = false
   error.value = ''
   status.value = ''
   paymentNotice.value = ''
@@ -314,6 +392,10 @@ async function load(discard = false) {
     applyResult(response.data, true)
     ready.value = true
     status.value = 'Saved'
+    try {
+      const attempt = JSON.parse(localStorage.getItem(`runstore-order-request:${s.userId}:${s.token}`) || 'null')
+      if (attempt && !completed.value) { orderAttempt = attempt; uncertainOrder.value = true }
+    } catch { /* No recoverable order attempt. */ }
     if (discard) localStorage.removeItem(s.key)
     let saved
     try { saved = JSON.parse(localStorage.getItem(s.key) || 'null') } catch { /* No local backup. */ }
@@ -337,11 +419,11 @@ async function load(discard = false) {
   }
 }
 watch([() => props.currentUser?.id, () => props.sessionLoading, () => route.params.checkoutToken, page], () => load(), { immediate: true })
-onBeforeRouteLeave(() => flush())
-onBeforeRouteUpdate(() => flush())
+onBeforeRouteLeave(() => placingOrder.value && !completed.value ? false : flush())
+onBeforeRouteUpdate(() => placingOrder.value && !completed.value ? false : flush())
 function leavingPage() { if (document.visibilityState === 'hidden') flush(true) }
 function beforeUnload(event) {
-  if (scope?.pending || scope?.flight) { event.preventDefault(); event.returnValue = '' }
+  if (scope?.pending || scope?.flight || placingOrder.value || uncertainOrder.value) { event.preventDefault(); event.returnValue = '' }
 }
 document.addEventListener('visibilitychange', leavingPage)
 window.addEventListener('beforeunload', beforeUnload)
@@ -358,14 +440,16 @@ onBeforeUnmount(() => {
   <main class="checkout-page">
     <section class="section checkout-section">
       <div class="checkout-heading">
-        <div class="checkout-heading__title"><RouterLink :to="{ name: 'cart' }">← Cart</RouterLink><h1>Checkout</h1></div>
+        <div class="checkout-heading__title"><BackButton :fallback="{ name: 'cart' }" /><h1>Checkout</h1></div>
         <span>{{ itemQuantity }} items</span>
       </div>
 
       <p v-if="sessionLoading || loadingDestinations" role="status">Loading checkout…</p>
       <p v-else-if="!currentUser"><button type="button" @click="$emit('open-auth')">Sign in to view your checkouts</button></p>
-      <p v-if="completed" role="status">Completed checkout</p>
-      <div v-if="error" role="alert" class="checkout-card">
+      <p v-if="completed" role="status">Completed checkout. <RouterLink v-if="hasOrders" :to="{ name: 'checkout-orders', params: { checkoutToken: route.params.checkoutToken } }">View your orders</RouterLink></p>
+      <p v-if="orderMessage" role="alert">{{ orderMessage }}</p>
+      <button v-if="uncertainOrder && ready" type="button" :disabled="placingOrder" @click="placeOrder">{{ placingOrder ? 'Checking order…' : 'Retry order safely' }}</button>
+      <div v-if="error && !uncertainOrder" role="alert" class="checkout-card">
         <p>{{ error }}</p>
         <button v-if="ready && !scope?.blocked" type="button" @click="flush()">Retry save</button>
         <button type="button" @click="load(true)">Reload saved data (discard local edits)</button>
@@ -381,15 +465,15 @@ onBeforeUnmount(() => {
       </div>
       <div v-else-if="ready && !checkoutItems.length" class="checkout-empty">
         <h2>No items selected for checkout</h2>
-        <RouterLink :to="{ name: 'cart' }">Back to cart</RouterLink>
+        <BackButton :fallback="{ name: 'cart' }" />
       </div>
 
-      <div v-else-if="ready && checkoutItems.length" class="checkout-layout" :inert="completed" @focusout="flush()" @change="flush()">
+      <div v-else-if="ready && checkoutItems.length" class="checkout-layout" :inert="completed || placingOrder || uncertainOrder" @focusout="flush()" @change="flush()">
         <div class="checkout-content">
           <section class="checkout-card" aria-labelledby="address-title">
             <h2 id="address-title">Address</h2>
             <form class="checkout-address" @submit.prevent>
-              <label><span>Email *</span><input v-model="address.email" type="email" autocomplete="email" maxlength="160" placeholder="Email" required /></label>
+              <label><span>Email *</span><input v-model="address.email" type="email" autocomplete="email" maxlength="254" placeholder="Email" required /></label>
               <label><span>Phone *</span><input v-model="address.phone" type="tel" autocomplete="tel" maxlength="30" placeholder="Phone" required /></label>
               <label><span>First Name *</span><input v-model="address.first_name" autocomplete="given-name" maxlength="100" placeholder="First Name" required /></label>
               <label><span>Last Name *</span><input v-model="address.last_name" autocomplete="family-name" maxlength="100" placeholder="Last Name" required /></label>
@@ -399,7 +483,7 @@ onBeforeUnmount(() => {
                   <option v-for="country in destinations" :key="country.country_code" :value="country.country_code">{{ countryLabel(country) }}</option>
                 </select>
               </label>
-              <label><span>Province/State *</span>
+              <label><span>Province/State{{ provinceOptions.length ? ' *' : '' }}</span>
                 <select v-model="address.province_state" autocomplete="address-level1"
                   :disabled="!address.country_code || (!provinceOptions.length && !hasLegacyProvince)" required>
                   <option value="" disabled>{{ !address.country_code ? 'Select a country first' : provinceOptions.length ? 'Select a province/state' : 'No provinces/states available' }}</option>
@@ -407,8 +491,8 @@ onBeforeUnmount(() => {
                   <option v-for="province in provinceOptions" :key="province" :value="province">{{ provinceLabel(province) }}</option>
                 </select>
               </label>
-              <label><span>{{ address.country_code === 'VN' ? 'City / Ward / Commune *' : 'City *' }}</span>
-                <select v-model="citySelection" :disabled="loadingCities || !address.province_state" autocomplete="address-level2" required>
+              <label><span>City *</span>
+                <select v-model="citySelection" :disabled="loadingCities || !address.country_code" autocomplete="address-level2" required>
                   <option value="" disabled>{{ loadingCities ? 'Loading cities…' : 'Select a city' }}</option>
                   <option v-for="city in cityNames" :key="city" :value="city">{{ city }}</option>
                   <option value="__manual__">Enter city manually…</option>
@@ -425,7 +509,7 @@ onBeforeUnmount(() => {
               </label>
             </form>
             <p v-if="locationError" role="alert">{{ locationError }} <button type="button" @click="loadCities(true)">Retry</button></p>
-            <small>Address data: <a href="https://www.geonames.org/" target="_blank" rel="noreferrer">GeoNames</a>, <a href="https://github.com/open-admin-data/vietnam-administrative-divisions" target="_blank" rel="noreferrer">Open Admin Data</a>.</small>
+            <div class="checkout-address-sources"><small>Address data: <a href="https://www.geonames.org/" target="_blank" rel="noreferrer">GeoNames</a>, <a href="https://github.com/open-admin-data/vietnam-administrative-divisions" target="_blank" rel="noreferrer">Open Admin Data</a>.</small></div>
           </section>
 
           <section class="checkout-card" aria-labelledby="shipping-title">
@@ -477,13 +561,12 @@ onBeforeUnmount(() => {
 
         <aside class="checkout-card checkout-summary" aria-labelledby="summary-title">
           <h2 id="summary-title">Order summary</h2>
-          <p v-if="quantityNotice" role="status" class="checkout-shipping-state">{{ quantityNotice }}</p>
           <div v-for="group in shopGroups" :key="group.shop_id" class="checkout-summary__shop">
             <h3>{{ group.shop_name }}</h3>
             <div v-for="item in group.items" :key="item.key" class="checkout-summary__product">
               <div class="checkout-summary__product-image"><img v-if="imageFor(item)" :src="imageFor(item)" :alt="item.name" @error="imageFailed(item)" /><span v-else>{{ item.category || 'No image' }}</span></div>
               <span>{{ item.name }}
-                <label>Quantity <input type="number" min="1" :max="quantityLimit(item)" :value="item.quantity" :aria-label="`Quantity for ${item.name}`" @input="quantityInput(item, $event)" @change="quantityInput(item, $event, true)" /></label>
+                <small class="checkout-summary__quantity">Quantity: {{ item.quantity }}</small>
               </span><strong>{{ formatCurrency(Number(item.price) * Number(item.quantity)) }}</strong>
             </div>
             <div class="checkout-summary__line"><span>Shipping fee</span><strong>{{ selectedForShop(group.shop_id) ? formatCurrency(selectedForShop(group.shop_id).fixed_fee) : '—' }}</strong></div>
@@ -491,6 +574,8 @@ onBeforeUnmount(() => {
           <div class="checkout-summary__subtotal"><span>Items subtotal</span><strong>{{ itemTotal == null ? '—' : formatCurrency(itemTotal) }}</strong></div>
           <div class="checkout-summary__subtotal"><span>Total shipping</span><strong>{{ shippingReady ? formatCurrency(shippingTotal) : '—' }}</strong></div>
           <div class="checkout-summary__total"><span>Order total</span><strong>{{ shippingReady ? formatCurrency(orderTotal) : '—' }}</strong></div>
+          <button class="checkout-submit" type="button" :disabled="placingOrder || !shippingReady || !selectedPaymentId || scope?.blocked" @click="placeOrder">{{ placingOrder ? 'Creating order…' : 'Checkout' }}</button>
+          <small>Prices, stock and shipping are verified again before your order is created. COD payment is due on delivery.</small>
         </aside>
       </div>
     </section>
@@ -499,9 +584,12 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .checkout-page { background: var(--rs-page); min-height: calc(100vh - 80px); }
+.checkout-submit { width: 100%; margin-block: 18px 10px; padding: 13px; border: 0; border-radius: 6px; background: var(--rs-link); color: var(--rs-surface); font-weight: 800; cursor: pointer; }
+.checkout-submit:disabled { opacity: .5; cursor: not-allowed; }
+.checkout-summary > small { display: block; color: var(--rs-muted); line-height: 1.5; }
 .checkout-section { padding-block: 30px 72px; }
 .checkout-heading { align-items: center; display: flex; gap: 12px; justify-content: space-between; margin-bottom: 18px; }
-.checkout-heading__title { align-items: baseline; display: flex; flex-wrap: wrap; gap: 8px 14px; min-width: 0; }
+.checkout-heading__title { align-items: center; display: flex; flex-wrap: wrap; gap: 8px 14px; min-width: 0; }
 .checkout-heading a { color: var(--rs-muted); font-size: .8rem; text-decoration: none; }
 .checkout-heading h1 { color: var(--rs-text); font-size: clamp(1.3rem, 2.4vw, 1.8rem); line-height: 1.2; margin: 0; white-space: nowrap; }
 .checkout-heading > span { color: var(--rs-muted); flex-shrink: 0; font-size: .82rem; }
@@ -510,11 +598,14 @@ onBeforeUnmount(() => {
 .checkout-card, .checkout-empty { background: var(--rs-surface); border: 1px solid var(--rs-border); border-radius: 9px; padding: 20px; }
 .checkout-card h2 { color: var(--rs-text); font-size: 1.05rem; margin: 0 0 16px; }
 .checkout-card h3 { color: var(--rs-muted); font-size: .84rem; margin: 0; }
-.checkout-address { display: grid; gap: 13px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.checkout-address { display: grid; align-items: start; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); font-size: 14px; }
 .checkout-address__column { display: grid; gap: 13px; min-width: 0; }
-.checkout-address label { display: grid; gap: 6px; }
-.checkout-address label span { color: var(--rs-muted); font-size: .78rem; font-weight: 750; }
-.checkout-address input, .checkout-address select { background: var(--rs-surface); border: 1px solid var(--rs-border); border-radius: 6px; box-sizing: border-box; color: var(--rs-text); min-height: 41px; padding: 10px 11px; width: 100%; }
+.checkout-address label { display: grid; align-content: start; gap: 6px; min-width: 0; }
+.checkout-address label span { color: var(--rs-muted); font-size: 12px; font-weight: 600; line-height: 20px; min-height: 20px; }
+.checkout-address input, .checkout-address select { background: var(--rs-surface); border: 1px solid var(--rs-border); border-radius: 6px; box-sizing: border-box; color: var(--rs-text); height: 42px; min-height: 42px; margin: 0; padding: 10px 11px; width: 100%; min-width: 0; font: inherit; line-height: 20px; }
+.checkout-address-sources { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--rs-border); display: grid; gap: 4px; color: var(--rs-muted); }
+.checkout-address-sources small { font-size: 11px; line-height: 1.5; }
+.checkout-address-sources a { color: var(--rs-link); }
 .checkout-card__title { align-items: center; display: flex; justify-content: space-between; }
 .checkout-card__title a { color: var(--rs-link); font-size: .78rem; font-weight: 750; text-decoration: none; }
 .checkout-shop + .checkout-shop { border-top: 1px solid var(--rs-border); margin-top: 17px; padding-top: 17px; }
@@ -560,8 +651,7 @@ onBeforeUnmount(() => {
 .checkout-summary__product-image { align-self: start; align-items: center; width: 38px; height: 38px; background: var(--rs-surface); border-radius: 4px; color: var(--rs-muted); display: flex; font-size: .52rem; justify-content: center; overflow: hidden; text-align: center; }
 .checkout-summary__product-image img { display: block; height: 100%; object-fit: contain; width: 100%; }
 .checkout-summary__product > span { color: var(--rs-muted); font-size: .72rem; line-height: 1.35; min-width: 0; }
-.checkout-summary__product label { display: block; margin-top: 5px; }
-.checkout-summary__product input { width: 64px; border: 1px solid var(--rs-border); border-radius: 4px; padding: 4px; }
+.checkout-summary__quantity { display: block; margin-top: 5px; font-size: inherit; }
 .checkout-summary__product > strong { color: var(--rs-muted); font-size: .74rem; overflow-wrap: anywhere; text-align: right; }
 .checkout-summary__line, .checkout-summary__subtotal, .checkout-summary__total { align-items: baseline; display: flex; gap: 12px; justify-content: space-between; padding: 5px 0; }
 .checkout-summary__line span { color: var(--rs-muted); font-size: .72rem; line-height: 1.4; }

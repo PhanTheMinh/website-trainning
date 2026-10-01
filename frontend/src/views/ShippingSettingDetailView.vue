@@ -1,4 +1,5 @@
 <script setup>
+import BackButton from '../components/BackButton.vue'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import ManagementSidebar from '../components/ManagementSidebar.vue'
@@ -171,13 +172,13 @@ onBeforeUnmount(() => window.clearTimeout(searchTimer))
         <ManagementSidebar />
         <div class="setting-detail-content">
           <header class="setting-detail-header">
-            <RouterLink :to="{ name: 'shipping-setting-list' }">← Settings list</RouterLink>
+            <BackButton :fallback="{ name: 'shipping-setting-list' }" />
             <h1>Setting details</h1>
           </header>
           <div v-if="loading" class="setting-detail-panel">Loading details...</div>
           <div v-else-if="notFound" class="setting-detail-panel setting-detail-empty">
             <h2>No settings found</h2>
-            <RouterLink :to="{ name: 'shipping-setting-list' }">Back to list</RouterLink>
+            <BackButton :fallback="{ name: 'shipping-setting-list' }" />
           </div>
           <form v-else class="setting-detail-panel setting-detail-form" @submit.prevent="saveRate">
             <div class="field setting-detail-form__wide">

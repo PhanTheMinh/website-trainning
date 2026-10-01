@@ -1,4 +1,5 @@
 <script setup>
+import BackButton from '../components/BackButton.vue'
 import { ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import {
@@ -109,9 +110,7 @@ watch(
 <template>
   <main class="my-shop-page">
     <section class="section profile-section">
-      <RouterLink class="profile-back" :to="{ name: 'profile' }">
-        ← Back to account
-      </RouterLink>
+      <BackButton :fallback="{ name: 'profile' }" />
 
       <div v-if="sessionLoading || loading" class="profile-empty" role="status">
         <h3>Loading shop information...</h3>

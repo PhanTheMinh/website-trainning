@@ -13,6 +13,10 @@ export function normalizeCheckoutAddress(value = {}) {
     province_state: text('province_state'),
     province_code: text('province_code'),
     city: text('city'),
-    zip_code: text('zip_code')
+    zip_code: text('zip_code'),
+    street: text('street'),
+    house_number: text('house_number'),
+    apartment: text('apartment'),
+    ward: text('ward')
   }
 }

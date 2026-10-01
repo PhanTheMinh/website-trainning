@@ -1,4 +1,5 @@
 <script setup>
+import BackButton from '../components/BackButton.vue'
 import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import ManagementSidebar from '../components/ManagementSidebar.vue'
@@ -119,7 +120,7 @@ watch(draftSearch, (value) => {
         <div class="method-list-content">
           <header class="method-list-header">
             <div>
-              <RouterLink :to="{ name: 'shipping-methods' }">← Shipping methods</RouterLink>
+              <BackButton :fallback="{ name: 'management' }" />
               <h1>Method list</h1>
             </div>
             <RouterLink class="method-list-add" :to="{ name: 'shipping-method-create' }">Add method</RouterLink>

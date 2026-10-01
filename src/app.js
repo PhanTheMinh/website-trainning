@@ -132,6 +132,7 @@ app.use('/api/categories', categoryRoute)
 app.use('/api/products', productRoute)
 app.use('/api/shops', shopRoute)
 app.use('/api/checkout', require('./routes/checkout.route'))
+app.use('/api/orders', require('./routes/orders.route'))
 
 if (process.env.NODE_ENV !== 'test') {
     app.use(morgan('dev'))
@@ -196,7 +197,8 @@ app.use(function errorHandler(error, req, res, _next) {
         message: statusCode >= 500
             ? 'Internal server error'
             : error.message,
-        ...(publicCode ? { code: publicCode } : {})
+        ...(publicCode ? { code: publicCode } : {}),
+        ...(publicCode === 'ORDER_REQUOTE_REQUIRED' ? error.publicData : {})
     })
 })
 

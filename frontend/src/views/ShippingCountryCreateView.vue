@@ -1,4 +1,5 @@
 <script setup>
+import BackButton from '../components/BackButton.vue'
 import { ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import ManagementSidebar from '../components/ManagementSidebar.vue'
@@ -63,7 +64,7 @@ async function submitCountry() {
         <ManagementSidebar />
         <div class="country-create-content">
           <header class="country-create-header">
-            <RouterLink :to="{ name: 'shipping-country-list' }">← Country list</RouterLink>
+            <BackButton :fallback="{ name: 'shipping-country-list' }" />
             <h1>Add country</h1>
           </header>
           <section class="country-create-panel">
