@@ -1,0 +1,34 @@
+[
+  {
+    "value": "giay-chay-bo",
+    "slug": "giay-chay-bo",
+    "name": "Giày chạy bộ",
+    "description": "Giày luyện tập và thi đấu dành cho người chạy bộ.",
+    "accent": "#0f766e",
+    "aliases": ["Giay chay bo", "Giày chạy bộ"]
+  },
+  {
+    "value": "ao-chay-bo",
+    "slug": "ao-chay-bo",
+    "name": "Áo chạy bộ",
+    "description": "Áo thoáng khí, nhẹ và phù hợp cho nhiều cự ly.",
+    "accent": "#2563eb",
+    "aliases": ["Ao chay bo", "Áo chạy bộ"]
+  },
+  {
+    "value": "quan-chay-bo",
+    "slug": "quan-chay-bo",
+    "name": "Quần chạy bộ",
+    "description": "Quần chạy linh hoạt cho tập luyện hằng ngày.",
+    "accent": "#7c3aed",
+    "aliases": ["Quan chay bo", "Quần chạy bộ"]
+  },
+  {
+    "value": "phu-kien-chay-bo",
+    "slug": "phu-kien-chay-bo",
+    "name": "Phụ kiện chạy bộ",
+    "description": "Bình nước, đai chạy, tất và các phụ kiện thiết yếu.",
+    "accent": "#ea580c",
+    "aliases": ["Phu kien chay bo", "Phụ kiện chạy bộ"]
+  }
+]
