@@ -38,6 +38,9 @@ const emit = defineEmits(['open-auth'])
           </header>
 
           <div class="management-cards">
+            <RouterLink :to="{ name: 'seller-order-list' }">
+              <small>Management</small><h2>Orders</h2><p>Confirm, fulfill and manage your shop orders.</p><strong>View orders →</strong>
+            </RouterLink>
             <RouterLink :to="{ name: 'my-products' }">
               <span class="management-card__index">01</span>
               <small>Management</small>

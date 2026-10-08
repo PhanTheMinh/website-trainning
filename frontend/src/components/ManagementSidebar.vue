@@ -8,6 +8,7 @@ const open = ref(false)
 const links = [
   { label: 'Overview', icon: 'grid', route: 'management', active: ['management'] },
   { label: 'Products', icon: 'package', route: 'my-products', active: ['my-products', 'product-create', 'product-edit', 'product-trash'] },
+  { label: 'Orders', icon: 'package', route: 'seller-order-list', active: ['seller-order-list', 'seller-order-detail'] },
   { label: 'Shop settings', icon: 'store', route: 'my-shop', active: ['my-shop'] },
   { label: 'Shipping methods', icon: 'truck', route: 'shipping-method-list', active: ['shipping-methods', 'shipping-method-list', 'shipping-method-create'] },
   { label: 'Countries', icon: 'grid', route: 'shipping-country-list', active: ['shipping-countries', 'shipping-country-list', 'shipping-country-create'] },

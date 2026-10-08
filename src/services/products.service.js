@@ -14,7 +14,8 @@ const {
     ProductVariantImage,
     ProductVariantValue,
     Shop,
-    User
+    User,
+    OrderItem
 } = require('../models')
 const shopService = require('./shops.service')
 
@@ -1340,6 +1341,9 @@ async function updateProduct(
 
             const replacesImages = productData.image_order !== undefined
             const replacesConfiguration = productData.options !== undefined
+            if (replacesConfiguration && await OrderItem.count({ where: { product_id: product.id }, transaction })) {
+                throw createClientError('This product has order history. Its variant configuration cannot be replaced.', 409)
+            }
             let retainedVariantImageIds = new Set(
                 currentVariantImages.map((image) => String(image.id))
             )
@@ -1657,6 +1661,10 @@ async function permanentlyDeleteProduct(ownerId, productId) {
 
         if (!product) {
             throw createClientError('Deleted product not found', 404)
+        }
+
+        if (await OrderItem.count({ where: { product_id: product.id }, transaction })) {
+            throw createClientError('This product has order history and cannot be permanently deleted. Keep it in the trash.', 409)
         }
 
         const images = await ProductImage.findAll({

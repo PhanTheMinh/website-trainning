@@ -3,9 +3,16 @@ const router = express.Router()
 
 const shopController = require('../controllers/shops.controller')
 const authenticate = require('../middlewares/auth.middleware')
+const sellerOrders = require('../controllers/seller-orders.controller')
 
 router.get('/me', authenticate, shopController.getManagedShop)
 router.patch('/me', authenticate, shopController.updateShop)
+router.get('/me/orders', authenticate, sellerOrders.list)
+router.get('/me/orders/:id', authenticate, sellerOrders.get)
+router.post('/me/orders/:id/confirm', authenticate, sellerOrders.confirm)
+router.patch('/me/orders/:id/fulfillment', authenticate, sellerOrders.fulfillment)
+router.post('/me/orders/:id/cancel', authenticate, sellerOrders.cancel)
+router.post('/me/orders/:id/mark-paid', authenticate, sellerOrders.markPaid)
 router.get(
     '/me/shipping-methods',
     authenticate,

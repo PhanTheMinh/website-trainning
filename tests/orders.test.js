@@ -63,6 +63,7 @@ describe('Atomic create order and historical snapshots', () => {
         try {
             const orders = await Order.findAll({ where: { user_id: users.map(user => user.id) } })
             const ids = orders.map(order => order.id)
+            await require('../src/models').OrderEvent.destroy({ where: { order_id: ids } })
             for (const model of [OrderItem, OrderAddress]) await model.destroy({ where: { order_id: ids } })
             await Order.destroy({ where: { id: ids } })
             await Customer.destroy({ where: { email_key: [email, simplifiedEmail] } })
@@ -108,6 +109,54 @@ describe('Atomic create order and historical snapshots', () => {
         expect((await buyer.post('/api/orders').send({ ...payload(await draft()), request_id: data.request_id })).body.code).toBe('IDEMPOTENCY_CONFLICT')
         await variants[0].update({ price: '100000.10' })
     })
+    it('lists only the authenticated seller shop orders, even when the buyer is another user', async () => {
+        const a = await buyer.get('/api/shops/me/orders')
+        const b = await other.get('/api/shops/me/orders')
+        expect(a.status).toBe(200)
+        expect(b.status).toBe(200)
+        expect(a.body.pagination.totalItems).toBe(1)
+        expect(b.body.pagination.totalItems).toBe(1)
+        expect(a.body.data[0]).toMatchObject({ shop_id: shops[0].id, item_quantity: 2,
+            recipient_name: 'Order Buyer', order_status: 'pending', financial_status: 'unpaid', order_total: '230000.20' })
+        expect(b.body.data[0]).toMatchObject({ shop_id: shops[1].id, order_total: '120000.50' })
+        expect(a.body.data[0].id).not.toBe(b.body.data[0].id)
+        for (const field of ['checkout_id', 'user_id', 'customer_id', 'items', 'address', 'payment_method_data']) {
+            expect(a.body.data[0]).not.toHaveProperty(field)
+        }
+        const foreignCode = await buyer.get('/api/shops/me/orders').query({ q: b.body.data[0].order_code })
+        expect(foreignCode.body.pagination.totalItems).toBe(0)
+        expect(foreignCode.body.data).toEqual([])
+        const byRecipient = await other.get('/api/shops/me/orders').query({ q: 'Buyer', financial_status: 'unpaid' })
+        expect(byRecipient.body.pagination.totalItems).toBe(1)
+        expect((await buyer.get('/api/shops/me/orders').query({ q: '%' })).body.data).toEqual([])
+        expect((await buyer.get('/api/shops/me/orders').query({ financial_status: 'paid' })).body.data).toEqual([])
+        const page = await buyer.get('/api/shops/me/orders').query({ page: 2, limit: 1 })
+        expect(page.body.data).toEqual([])
+        expect(page.body.pagination).toMatchObject({ page: 2, limit: 1, totalItems: 1, totalPages: 1 })
+        expect((await request(app).get('/api/shops/me/orders')).status).toBe(401)
+        for (const query of [{ shop_id: shops[1].id }, { user_id: users[1].id }, { page: 0 }, { limit: 101 },
+            { sort: 'invalid' }, { order_status: 'invalid' }, { financial_status: 'invalid' }]) {
+            expect((await buyer.get('/api/shops/me/orders').query(query)).status).toBe(400)
+        }
+    })
+    it('rejects sellers without a shop or with a suspended shop, while allowing closed shops to view existing orders', async () => {
+        const user = await User.create({ full_name: 'No shop', email: `order-no-shop-${stamp}@example.com`,
+            password: await hashPassword('123456'), role: 'user', status: 'active' })
+        try {
+            const agent = request.agent(app)
+            expect((await agent.post('/api/auth/login').send({ email: user.email, password: '123456' })).status).toBe(200)
+            expect((await agent.get('/api/shops/me/orders')).status).toBe(404)
+            await shops[0].update({ status: 'suspended' })
+            expect((await buyer.get('/api/shops/me/orders')).status).toBe(403)
+            await shops[0].update({ status: 'closed' })
+            const response = await buyer.get('/api/shops/me/orders')
+            expect(response.status).toBe(200)
+            expect(response.body.pagination.totalItems).toBe(1)
+        } finally {
+            await shops[0].update({ status: 'active' })
+            await User.destroy({ where: { id: user.id } })
+        }
+    })
     it('enforces required order links at database level without losing foreign keys', async () => {
         const q = sequelize.getQueryInterface()
         const columns = await q.describeTable('orders')
@@ -128,6 +177,13 @@ describe('Atomic create order and historical snapshots', () => {
         expect(await Customer.count({ where: { email_key: email } })).toBe(1)
         expect((await Customer.findOne({ where: { email_key: email } })).first_name).toBe('Order')
         expect(response.body.data.orders[0].address.recipient_first_name).toBe('New recipient')
+        const oldest = await buyer.get('/api/shops/me/orders').query({ limit: 1, sort: 'oldest' })
+        const newest = await buyer.get('/api/shops/me/orders').query({ limit: 1, sort: 'newest' })
+        expect(newest.body.pagination).toMatchObject({ totalItems: 2, totalPages: 2 })
+        expect(newest.body.data[0].id).toBe(response.body.data.orders[0].id)
+        expect(oldest.body.data[0].id).not.toBe(newest.body.data[0].id)
+        const secondPage = await buyer.get('/api/shops/me/orders').query({ page: 2, limit: 1, sort: 'newest' })
+        expect(secondPage.body.data[0].id).toBe(oldest.body.data[0].id)
     })
     it('rejects changes in product price and shipping quote until explicitly re-saved', async () => {
         const d = await draft()
@@ -190,6 +246,114 @@ describe('Atomic create order and historical snapshots', () => {
             .toMatchObject({ city: 'Kinh Môn', street: '', house_number: null, apartment: null, ward: null })
         // Existing customer profile data must not be erased by the simplified form.
         expect((await Customer.findOne({ where: { email_key: email } })).street).toBe('Test street')
+    })
+    it('isolates seller detail/actions and runs the COD lifecycle without decrementing stock again', async () => {
+        const created = await buyer.post('/api/orders').send(payload(await draft()))
+        expect(created.status).toBe(201)
+        const [a, b] = created.body.data.orders
+        const path = `/api/shops/me/orders/${a.id}`
+        expect((await other.get(path)).status).toBe(404)
+        expect((await buyer.get(`/api/shops/me/orders/${b.id}`)).status).toBe(404)
+        expect((await request(app).get(path)).status).toBe(401)
+        for (const action of ['confirm', 'mark-paid', 'cancel']) {
+            expect((await other.post(`${path}/${action}`).send({ version: 1, ...(action === 'cancel' ? { reason: 'Foreign order' } : {}) })).status).toBe(404)
+        }
+        expect((await other.patch(`${path}/fulfillment`).send({ version: 1, fulfillment_status: 'processing' })).status).toBe(404)
+        let detail = (await buyer.get(path)).body.data
+        expect(detail).toMatchObject({ order_status: 'pending', financial_status: 'unpaid', fulfillment_status: 'unfulfilled', lock_version: 1 })
+        for (const field of ['checkout_id', 'customer_id', 'user_id']) expect(detail).not.toHaveProperty(field)
+        expect(detail.items).toHaveLength(1)
+        expect(detail.items[0].product_id).toBe(variants[0].product_id)
+        expect((await buyer.post(`${path}/mark-paid`).send({ version: 1 })).body.code).toBe('INVALID_ORDER_TRANSITION')
+        expect((await buyer.patch(`${path}/fulfillment`).send({ version: 1, fulfillment_status: 'shipped' })).status).toBe(409)
+        expect((await buyer.post(`${path}/confirm`).send({ version: 99 })).body.code).toBe('ORDER_CONFLICT')
+        const stockBefore = (await variants[0].reload()).stock_quantity
+        const concurrent = await Promise.all([1, 2].map(() => buyer.post(`${path}/confirm`).send({ version: 1 })))
+        expect(concurrent.map(response => response.status)).toEqual([200, 200])
+        detail = concurrent[0].body.data
+        expect(detail.events).toHaveLength(1)
+        expect(detail.lock_version).toBe(2)
+        expect((await buyer.patch(`${path}/fulfillment`).send({ version: 1, fulfillment_status: 'processing' })).body.code).toBe('ORDER_CONFLICT')
+        for (const fulfillment of ['processing', 'shipped', 'delivered']) {
+            const response = await buyer.patch(`${path}/fulfillment`).send({ version: detail.lock_version, fulfillment_status: fulfillment })
+            expect(response.status).toBe(200)
+            detail = response.body.data
+            expect(detail.fulfillment_status).toBe(fulfillment)
+            expect(detail.financial_status).toBe('unpaid')
+        }
+        expect(detail.allowed_actions).toEqual(['mark-paid'])
+        expect((await buyer.post(`${path}/cancel`).send({ version: detail.lock_version, reason: 'Already shipped' })).status).toBe(409)
+        const paid = await buyer.post(`${path}/mark-paid`).send({ version: detail.lock_version })
+        expect(paid.status).toBe(200)
+        detail = paid.body.data
+        expect(detail).toMatchObject({ order_status: 'completed', financial_status: 'paid', fulfillment_status: 'delivered', allowed_actions: [] })
+        expect(detail.paid_at).toBeTruthy()
+        expect(detail.events.map(event => event.action)).toEqual(['confirm', 'processing', 'shipped', 'delivered', 'mark-paid'])
+        expect(detail.events.every(event => event.actor_user_id === users[0].id)).toBe(true)
+        expect((await buyer.post(`${path}/mark-paid`).send({ version: detail.lock_version - 1 })).body.data.events).toHaveLength(5)
+        expect((await variants[0].reload()).stock_quantity).toBe(stockBefore)
+        expect((await buyer.get(`/api/orders/${a.id}`)).body.data.status).toBe('completed')
+        expect((await other.get(`/api/shops/me/orders/${b.id}`)).body.data.order_status).toBe('pending')
+        const filtered = await buyer.get('/api/shops/me/orders').query({ fulfillment_status: 'delivered', financial_status: 'paid', q: a.order_code })
+        expect(filtered.body.pagination.totalItems).toBe(1)
+    })
+    it('cancels once, restores inventory once, and leaves other shop orders and checkout completion intact', async () => {
+        const d = await draft()
+        const created = await buyer.post('/api/orders').send(payload(d))
+        const [a, b] = created.body.data.orders
+        const path = `/api/shops/me/orders/${a.id}`
+        const stockBefore = Number((await variants[0].reload()).stock_quantity)
+        const otherStock = Number((await variants[1].reload()).stock_quantity)
+        const product = await Product.findByPk(variants[0].product_id)
+        const productVersion = product.lock_version
+        expect((await buyer.post(`${path}/cancel`).send({ version: 1, reason: '' })).status).toBe(400)
+        await buyer.post(`${path}/confirm`).send({ version: 1 })
+        const preparing = await buyer.patch(`${path}/fulfillment`).send({ version: 2, fulfillment_status: 'processing' })
+        const responses = await Promise.all([1, 2].map(() => buyer.post(`${path}/cancel`).send({ version: preparing.body.data.lock_version, reason: 'Customer requested cancellation' })))
+        expect(responses.map(response => response.status)).toEqual([200, 200])
+        expect(responses[0].body.data).toMatchObject({ order_status: 'cancelled', fulfillment_status: 'cancelled', financial_status: 'unpaid', allowed_actions: [] })
+        expect(responses[0].body.data.events.filter(event => event.action === 'cancel')).toHaveLength(1)
+        expect(Number((await variants[0].reload()).stock_quantity)).toBe(stockBefore + 2)
+        expect(Number((await variants[1].reload()).stock_quantity)).toBe(otherStock)
+        expect((await product.reload()).stock).toBe(stockBefore + 2)
+        expect(product.lock_version).toBe(productVersion + 1)
+        expect((await Order.findByPk(b.id)).status).toBe('pending')
+        expect((await CheckoutToken.findOne({ where: { checkout_token: d.token } })).is_completed).toBe(true)
+        const buyerReceipt = await buyer.get(`/api/checkout/${d.token}/orders`)
+        expect(buyerReceipt.body.data.orders[0].status).toBe('cancelled')
+    })
+    it('rolls back cancellation and stock restoration if history cannot be saved', async () => {
+        const created = await buyer.post('/api/orders').send(payload(await draft()))
+        const order = created.body.data.orders[0]
+        const stock = Number((await variants[0].reload()).stock_quantity)
+        const eventModel = require('../src/models').OrderEvent
+        const spy = jest.spyOn(eventModel, 'create').mockRejectedValueOnce(new Error('History write failed'))
+        try {
+            expect((await buyer.post(`/api/shops/me/orders/${order.id}/cancel`).send({ version: 1, reason: 'Rollback test' })).status).toBe(500)
+            expect((await Order.findByPk(order.id)).status).toBe('pending')
+            expect(Number((await variants[0].reload()).stock_quantity)).toBe(stock)
+            expect(await eventModel.count({ where: { order_id: order.id } })).toBe(0)
+        } finally { spy.mockRestore() }
+    })
+    it('preserves historical product/rate links and can restore cancelled stock for a trashed product', async () => {
+        const created = await buyer.post('/api/orders').send(payload(await draft()))
+        const order = created.body.data.orders[0]
+        const productService = require('../src/services/products.service')
+        const shippingService = require('../src/services/shipping-settings.service')
+        const product = await Product.findByPk(variants[0].product_id)
+        const stock = Number((await variants[0].reload()).stock_quantity)
+        await expect(productService.updateProduct(users[0].id, product.id, { lock_version: product.lock_version, options: [] }, [], []))
+            .rejects.toMatchObject({ statusCode: 409 })
+        await expect(shippingService.deleteShippingRate(users[0].id, rates[0].id)).rejects.toMatchObject({ statusCode: 409 })
+        await productService.softDeleteProduct(users[0].id, product.id)
+        try {
+            await expect(productService.permanentlyDeleteProduct(users[0].id, product.id)).rejects.toMatchObject({ statusCode: 409 })
+            const cancelled = await buyer.post(`/api/shops/me/orders/${order.id}/cancel`).send({ version: 1, reason: 'Trashed product cancellation' })
+            expect(cancelled.status).toBe(200)
+            expect(Number((await variants[0].reload()).stock_quantity)).toBe(stock + 2)
+            expect(cancelled.body.data.items[0].product_name).toBe(order.items[0].product_name)
+        } finally { await productService.restoreProduct(users[0].id, product.id) }
+        expect(await Product.findByPk(product.id)).not.toBeNull()
     })
     it('does not oversell when two different checkouts compete for the last items', async () => {
         const a = await draft()

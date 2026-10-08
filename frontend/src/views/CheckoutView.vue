@@ -171,6 +171,12 @@ function imageFailed(item) {
 function selectedForShop(id) {
   return shippingGroups.value.find(group => group.shop_id === id)?.options.find(option => option.rate_id === selectedRates.value[id]) || null
 }
+function shopTotal(group) {
+  const shipping = selectedForShop(group.shop_id)
+  if (!shipping) return null
+  return (group.items.reduce((sum, item) => sum + Math.round(Number(item.price ?? item.unit_price) * 100) * item.quantity, 0)
+    + Math.round(Number(shipping.fixed_fee) * 100)) / 100
+}
 function deliveryLabel(option) { return `${option.min_delivery_days}–${option.max_delivery_days} days` }
 function toggleShipping(id) {
   const next = new Set(expandedShops.value)
@@ -512,13 +518,24 @@ onBeforeUnmount(() => {
             <div class="checkout-address-sources"><small>Address data: <a href="https://www.geonames.org/" target="_blank" rel="noreferrer">GeoNames</a>, <a href="https://github.com/open-admin-data/vietnam-administrative-divisions" target="_blank" rel="noreferrer">Open Admin Data</a>.</small></div>
           </section>
 
-          <section class="checkout-card" aria-labelledby="shipping-title">
-            <h2 id="shipping-title">Shipping method</h2>
+          <section class="checkout-shops" aria-label="Products and shipping by shop">
             <div v-if="shippingError" class="checkout-shipping-state checkout-shipping-state--error" role="status">{{ shippingError }}</div>
             <div v-if="loadingDestinations || loadingShipping" class="checkout-shipping-state" role="status">Loading shipping methods...</div>
             <div v-else-if="!destinations.length" class="checkout-shipping-state">No shared shipping destination is available for the selected shops.</div>
-            <div v-else v-for="group in shopGroups" :key="group.shop_id" class="checkout-shipping-shop">
-              <h3>{{ group.shop_name }}</h3>
+            <div v-for="group in shopGroups" :key="group.shop_id" class="checkout-card checkout-shop">
+              <h2>{{ group.shop_name }}</h2>
+              <div class="checkout-product-head" aria-hidden="true"><span>Product</span><span>Unit price</span><span>Quantity</span><span>Amount</span></div>
+              <div v-for="item in group.items" :key="item.variant_id" class="checkout-product">
+                <div class="checkout-product__details">
+                  <div class="checkout-product__visual"><img v-if="imageFor(item)" :src="imageFor(item)" :alt="item.name" @error="imageFailed(item)" /><span v-else>{{ item.category || 'No image' }}</span></div>
+                  <div class="checkout-product__name"><strong>{{ item.name }}</strong><small v-if="item.variant">{{ item.variant }}</small></div>
+                </div>
+                <span class="checkout-product__price"><span class="checkout-product__mobile-label">Unit price: </span>{{ formatCurrency(Number(item.price ?? item.unit_price)) }}</span>
+                <span class="checkout-product__quantity"><span class="checkout-product__mobile-label">Quantity: </span>{{ item.quantity }}</span>
+                <strong class="checkout-product__amount">{{ formatCurrency(Number(item.price ?? item.unit_price) * Number(item.quantity)) }}</strong>
+              </div>
+              <div class="checkout-shipping-shop">
+              <h3>Shipping method</h3>
               <template v-if="shippingGroups.find(item => item.shop_id === group.shop_id)?.options.length">
                 <div v-if="selectedForShop(group.shop_id)" class="checkout-shipping-selected">
                   <div><strong>{{ selectedForShop(group.shop_id).name }}</strong><small>Estimated delivery: {{ deliveryLabel(selectedForShop(group.shop_id)) }}</small></div>
@@ -534,6 +551,8 @@ onBeforeUnmount(() => {
                 </div>
               </template>
               <p v-else>This shop does not ship to the selected country.</p>
+              </div>
+              <div class="checkout-shop__total" aria-live="polite"><span>Shop order total</span><strong>{{ shopTotal(group) == null ? '—' : formatCurrency(shopTotal(group)) }}</strong></div>
             </div>
           </section>
 
@@ -546,37 +565,19 @@ onBeforeUnmount(() => {
                 <input v-model="selectedPaymentId" type="radio" name="payment-method" :value="option.id" />
                 <span>
                   <strong>{{ option.name }}</strong>
-                  <small v-if="option.payment_data.description">{{ option.payment_data.description }}</small>
-                  <small v-if="option.payment_data.instructions">{{ option.payment_data.instructions }}</small>
-                  <template v-if="option.shop_details?.length > 1">
-                    <small v-for="shop in option.shop_details" :key="shop.shop_id"><strong>{{ shop.shop_name }}</strong> — {{ shop.name }}<br />{{ shop.description }}<br v-if="shop.description && shop.instructions" />{{ shop.instructions }}</small>
-                  </template>
                 </span>
-                <b>COD</b>
               </label>
             </div>
             <p v-else class="checkout-payment-state">COD is not available for every shop in this checkout.</p>
           </section>
         </div>
 
-        <aside class="checkout-card checkout-summary" aria-labelledby="summary-title">
-          <h2 id="summary-title">Order summary</h2>
-          <div v-for="group in shopGroups" :key="group.shop_id" class="checkout-summary__shop">
-            <h3>{{ group.shop_name }}</h3>
-            <div v-for="item in group.items" :key="item.key" class="checkout-summary__product">
-              <div class="checkout-summary__product-image"><img v-if="imageFor(item)" :src="imageFor(item)" :alt="item.name" @error="imageFailed(item)" /><span v-else>{{ item.category || 'No image' }}</span></div>
-              <span>{{ item.name }}
-                <small class="checkout-summary__quantity">Quantity: {{ item.quantity }}</small>
-              </span><strong>{{ formatCurrency(Number(item.price) * Number(item.quantity)) }}</strong>
-            </div>
-            <div class="checkout-summary__line"><span>Shipping fee</span><strong>{{ selectedForShop(group.shop_id) ? formatCurrency(selectedForShop(group.shop_id).fixed_fee) : '—' }}</strong></div>
-          </div>
+        <section class="checkout-card checkout-summary" aria-label="Checkout totals" aria-live="polite">
           <div class="checkout-summary__subtotal"><span>Items subtotal</span><strong>{{ itemTotal == null ? '—' : formatCurrency(itemTotal) }}</strong></div>
           <div class="checkout-summary__subtotal"><span>Total shipping</span><strong>{{ shippingReady ? formatCurrency(shippingTotal) : '—' }}</strong></div>
           <div class="checkout-summary__total"><span>Order total</span><strong>{{ shippingReady ? formatCurrency(orderTotal) : '—' }}</strong></div>
           <button class="checkout-submit" type="button" :disabled="placingOrder || !shippingReady || !selectedPaymentId || scope?.blocked" @click="placeOrder">{{ placingOrder ? 'Creating order…' : 'Checkout' }}</button>
-          <small>Prices, stock and shipping are verified again before your order is created. COD payment is due on delivery.</small>
-        </aside>
+        </section>
       </div>
     </section>
   </main>
@@ -586,14 +587,13 @@ onBeforeUnmount(() => {
 .checkout-page { background: var(--rs-page); min-height: calc(100vh - 80px); }
 .checkout-submit { width: 100%; margin-block: 18px 10px; padding: 13px; border: 0; border-radius: 6px; background: var(--rs-link); color: var(--rs-surface); font-weight: 800; cursor: pointer; }
 .checkout-submit:disabled { opacity: .5; cursor: not-allowed; }
-.checkout-summary > small { display: block; color: var(--rs-muted); line-height: 1.5; }
-.checkout-section { padding-block: 30px 72px; }
+.checkout-section { width: min(100%, 1000px); margin-inline: auto; padding: 30px 24px 72px; }
 .checkout-heading { align-items: center; display: flex; gap: 12px; justify-content: space-between; margin-bottom: 18px; }
 .checkout-heading__title { align-items: center; display: flex; flex-wrap: wrap; gap: 8px 14px; min-width: 0; }
 .checkout-heading a { color: var(--rs-muted); font-size: .8rem; text-decoration: none; }
 .checkout-heading h1 { color: var(--rs-text); font-size: clamp(1.3rem, 2.4vw, 1.8rem); line-height: 1.2; margin: 0; white-space: nowrap; }
 .checkout-heading > span { color: var(--rs-muted); flex-shrink: 0; font-size: .82rem; }
-.checkout-layout { align-items: start; display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr) 330px; }
+.checkout-layout { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
 .checkout-content { display: grid; gap: 16px; min-width: 0; }
 .checkout-card, .checkout-empty { background: var(--rs-surface); border: 1px solid var(--rs-border); border-radius: 9px; padding: 20px; }
 .checkout-card h2 { color: var(--rs-text); font-size: 1.05rem; margin: 0 0 16px; }
@@ -608,9 +608,20 @@ onBeforeUnmount(() => {
 .checkout-address-sources a { color: var(--rs-link); }
 .checkout-card__title { align-items: center; display: flex; justify-content: space-between; }
 .checkout-card__title a { color: var(--rs-link); font-size: .78rem; font-weight: 750; text-decoration: none; }
-.checkout-shop + .checkout-shop { border-top: 1px solid var(--rs-border); margin-top: 17px; padding-top: 17px; }
+.checkout-shops { display: grid; gap: 16px; min-width: 0; }
+.checkout-shop + .checkout-shop { margin-top: 0; }
 .checkout-shop h3 { background: var(--rs-surface); border-radius: 5px; padding: 9px 10px; }
-.checkout-product { align-items: center; border-bottom: 1px solid var(--rs-border); display: grid; gap: 12px; grid-template-columns: 58px minmax(0, 1fr) auto auto; padding: 12px 0; }
+.checkout-product, .checkout-product-head { align-items: center; display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) 110px 75px 125px; }
+.checkout-product { border-top: 1px solid var(--rs-border); padding: 16px 0; }
+.checkout-product-head { color: var(--rs-muted); font-size: .75rem; padding: 0 0 12px; }
+.checkout-product-head > :not(:first-child), .checkout-product__price, .checkout-product__amount { text-align: right; }
+.checkout-product-head > :nth-child(3), .checkout-product__quantity { text-align: center; }
+.checkout-product__details { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.checkout-product__visual { width: 58px; flex-shrink: 0; }
+.checkout-product__quantity { color: var(--rs-text); font-size: .82rem; }
+.checkout-product__mobile-label { display: none; }
+.checkout-shop__total { border-top: 1px solid var(--rs-border); display: flex; justify-content: flex-end; gap: 24px; align-items: baseline; padding-top: 16px; color: var(--rs-muted); font-size: .85rem; }
+.checkout-shop__total strong { color: var(--rs-text); font-size: 1.1rem; }
 .checkout-product:last-child { border-bottom: 0; }
 .checkout-product__visual { align-items: center; aspect-ratio: 1; background: var(--rs-surface); border-radius: 5px; color: var(--rs-muted); display: flex; font-size: .68rem; justify-content: center; overflow: hidden; text-align: center; }
 .checkout-product__visual img { height: 100%; object-fit: cover; width: 100%; }
@@ -636,15 +647,13 @@ onBeforeUnmount(() => {
 .checkout-shipping-options label strong, .checkout-shipping-options b { color: var(--rs-text); font-size: .8rem; }
 .checkout-shipping-options label small { color: var(--rs-muted); font-size: .72rem; }
 .checkout-payment-options { border: 1px solid var(--rs-border); border-radius: 7px; overflow: hidden; }
-.checkout-payment-options label { align-items: center; cursor: pointer; display: grid; gap: 10px; grid-template-columns: 18px minmax(0, 1fr) auto; padding: 13px 11px; }
+.checkout-payment-options label { align-items: center; cursor: pointer; display: grid; gap: 10px; grid-template-columns: 18px minmax(0, 1fr); padding: 13px 11px; }
 .checkout-payment-options input { accent-color: var(--rs-link); }
 .checkout-payment-options label > span { display: grid; gap: 3px; }
 .checkout-payment-options strong { color: var(--rs-text); font-size: .84rem; }
-.checkout-payment-options small { color: var(--rs-muted); font-size: .72rem; }
-.checkout-payment-options b { background: var(--rs-subtle); border-radius: 999px; color: var(--rs-link); font-size: .68rem; padding: 5px 8px; }
 .checkout-payment-state { color: var(--rs-muted); font-size: .78rem; margin: 0; }
 .checkout-payment-state--error { color: var(--rs-error); margin-bottom: 10px; }
-.checkout-summary { position: sticky; top: 92px; }
+.checkout-summary { position: static; display: grid; grid-template-columns: minmax(0, 1fr); padding-left: max(20px, calc(100% - 380px)); }
 .checkout-summary__shop { border-top: 1px solid var(--rs-border); padding: 14px 0; }
 .checkout-summary__shop h3 { margin-bottom: 9px; }
 .checkout-summary__product { align-items: center; display: grid; gap: 8px; grid-template-columns: 38px minmax(0, 1fr) auto; padding: 6px 0; }
@@ -665,5 +674,5 @@ onBeforeUnmount(() => {
 .checkout-empty h2 { color: var(--rs-text); font-size: 1rem; }
 .checkout-empty a { color: var(--rs-link); font-weight: 800; }
 @media (max-width: 930px) { .checkout-layout { grid-template-columns: 1fr; } .checkout-summary { position: static; } }
-@media (max-width: 620px) { .checkout-address { grid-template-columns: 1fr; } .checkout-product { grid-template-columns: 48px minmax(0, 1fr) auto; } .checkout-product__price { grid-column: 2; } .checkout-product__amount { grid-column: 3; } .checkout-shipping-selected { grid-template-columns: minmax(0, 1fr) auto; } .checkout-shipping-selected button { grid-column: 2; } }
+@media (max-width: 620px) { .checkout-section { padding-inline: 12px; } .checkout-card { padding: 16px; } .checkout-address { grid-template-columns: 1fr; } .checkout-product-head { display: none; } .checkout-product { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; } .checkout-product__details { grid-column: 1 / -1; } .checkout-product__price { grid-column: 1; text-align: left; } .checkout-product__quantity { grid-column: 1; text-align: left; } .checkout-product__amount { grid-column: 2; grid-row: 2 / 4; } .checkout-product__mobile-label { display: inline; color: var(--rs-muted); } .checkout-shipping-selected { grid-template-columns: minmax(0, 1fr) auto; } .checkout-shipping-selected button { grid-column: 2; } }
 </style>

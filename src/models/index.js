@@ -15,7 +15,7 @@ const ShippingRateCountry = require('./shipping-rate-country')
 const CheckoutToken = require('./checkout-token')
 const PaymentMethod = require('./payment-method')
 const orderModels = require('./orders')
-const { GeoCountry, Province, Customer, Order, OrderItem, OrderAddress } = orderModels
+const { GeoCountry, Province, Customer, Order, OrderItem, OrderAddress, OrderEvent } = orderModels
 
 GeoCountry.hasMany(Province, { as: 'provinces', foreignKey: 'country_id' })
 Province.belongsTo(GeoCountry, { as: 'country', foreignKey: 'country_id' })
@@ -28,6 +28,9 @@ Order.belongsTo(Customer, { as: 'customer', foreignKey: 'customer_id' })
 Order.belongsTo(Shop, { as: 'shop', foreignKey: 'shop_id' })
 Order.hasMany(OrderItem, { as: 'items', foreignKey: 'order_id' })
 Order.hasOne(OrderAddress, { as: 'address', foreignKey: 'order_id' })
+Order.hasMany(OrderEvent, { as: 'events', foreignKey: 'order_id' })
+OrderEvent.belongsTo(Order, { as: 'order', foreignKey: 'order_id' })
+OrderEvent.belongsTo(User, { as: 'actor', foreignKey: 'actor_user_id' })
 OrderItem.belongsTo(Order, { as: 'order', foreignKey: 'order_id' })
 OrderItem.belongsTo(Product, { as: 'product', foreignKey: 'product_id' })
 OrderItem.belongsTo(ProductVariant, { as: 'variant', foreignKey: 'product_variant_id' })

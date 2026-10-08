@@ -6,6 +6,7 @@ import { API_BASE_URL } from '../services/apiClient.js'
 import { formatCurrency } from '../data/catalog.js'
 import BackButton from '../components/BackButton.vue'
 import UiIcon from '../components/ui/UiIcon.vue'
+import { orderStatuses, fulfillmentStatuses } from '../utils/orderStatus.js'
 
 const props = defineProps({ currentUser: { type: Object, default: null }, sessionLoading: Boolean })
 defineEmits(['open-auth'])
@@ -61,6 +62,7 @@ watch([() => props.currentUser?.id, () => props.sessionLoading, () => route.full
         </section>
         <article v-for="order in orders" :key="order.id" class="order-block order-shop">
           <header class="order-shop__heading"><h2>{{ order.shop?.name || 'Your order' }}</h2><span>Order #{{ order.id }}<span v-if="order.status === 'cancelled'"> · Cancelled</span></span></header>
+          <div class="order-row"><span>Order status</span><div>{{ orderStatuses[order.status] || order.status }}</div><span>{{ fulfillmentStatuses[order.fulfillment_status] || 'Not started' }}</span></div>
           <div class="order-columns" aria-hidden="true"><span>Product</span><span>Unit price</span><span>Quantity</span><span>Subtotal</span></div>
           <ul class="order-items">
             <li v-for="item in order.items" :key="item.id">

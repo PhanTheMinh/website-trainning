@@ -5,7 +5,8 @@ const {
     ShippingMethod,
     ShippingRate,
     ShippingRateCountry,
-    Shop
+    Shop,
+    Order
 } = require('../models')
 
 function createClientError(message, statusCode = 400) {
@@ -395,6 +396,9 @@ async function deleteShippingRate(ownerId, rateId) {
         })
 
         if (!rate) throw createClientError('Shipping rate not found', 404)
+        if (await Order.count({ where: { shipping_rate_id: rate.id }, transaction })) {
+            throw createClientError('This shipping rate has order history and cannot be deleted. Disable its shipping method instead.', 409)
+        }
         await rate.destroy({ transaction })
     })
 }
