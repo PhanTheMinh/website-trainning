@@ -112,6 +112,41 @@ describe('Seller Order List search integration', () => {
         expect(orders.flat().every(order => order.order_code.includes(String(id)))).toBe(true)
     })
 
+    it('finds order by partial displayed name', async () => {
+        const order = orders
+            .flat()
+            .find(order => {
+                const displayedName = `#${String(order.id).padStart(4, '0')}`
+                return displayedName.includes('000')
+            })
+
+        expect(order).toBeDefined()
+
+        const id = order.id
+        const displayedName = `#${String(id).padStart(4, '0')}`
+        const query = displayedName.replace('#', '').slice(0, 3)
+
+        const result = await search(agents[0], query)
+
+        expect(result.pagination).toMatchObject({
+            totalItems: 1,
+            totalPages: 1,
+        })
+        expect(result.data.map(order => order.id)).toEqual([id])
+        expect(result.data[0]).toMatchObject({
+            shop_id: shops[0].id,
+            recipient_name: 'Search Customer',
+        })
+    })
+
+    it('finds orders by a partial padded displayed order name', async () => {
+        const q = String(orders[0][0].id).padStart(4, '0').slice(0, 3)
+        const result = await search(agents[0], q)
+        expect(result.data.length).toBeGreaterThan(0)
+        expect(result.data.every(order => order.shop_id === shops[0].id)).toBe(true)
+        expect(result.data.every(order => `#${String(order.id).padStart(4, '0')}`.includes(q))).toBe(true)
+    })
+
     it('does not match a different customer whose name contains the searched order number', async () => {
         const target = orders[0][0]
         const other = orders[2][0]
