@@ -5,3 +5,8 @@ npm-debug.log
 .DS_Store
 .idea
 .vscode
+uploads/avatars/*
+src/uploads/avatars/*
+src/uploads/products/*
+frontend/public/address-data/
+.cache/street-lists/
