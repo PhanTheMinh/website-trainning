@@ -139,6 +139,29 @@ describe('Seller Order List search integration', () => {
         })
     })
 
+
+
+it('finds order by searching 000 in displayed order name', async () => {
+    const result = await search(agents[0], '000')
+
+    expect(result.pagination).toMatchObject({
+        totalItems: 1,
+        totalPages: 1,
+    })
+
+    expect(result.data).toHaveLength(1)
+
+    const order = result.data[0]
+    const displayedName = `#${String(order.id).padStart(4, '0')}`
+
+    expect(displayedName).toContain('000')
+    expect(order).toMatchObject({
+        shop_id: shops[0].id,
+        recipient_name: 'Search Customer',
+    })
+})
+
+
     it('finds orders by a partial padded displayed order name', async () => {
         const q = String(orders[0][0].id).padStart(4, '0').slice(0, 3)
         const result = await search(agents[0], q)
