@@ -98,6 +98,10 @@ describe('Seller Order List search integration', () => {
     it.each(['number', 'hash', 'padded', 'displayed name', 'surrounding spaces'])('finds the displayed order name using %s', async format => {
         const id = orders[0][0].id
         const displayedName = `#${String(id).padStart(4, '0')}`
+        console.log('Log data =========>', {
+            displayedName: displayedName,
+            id: id,
+        })
         const queries = { number: String(id), hash: `#${id}`, padded: String(id).padStart(8, '0'),
             'displayed name': displayedName, 'surrounding spaces': `  ${displayedName}  ` }
         const result = await search(agents[0], queries[format])
