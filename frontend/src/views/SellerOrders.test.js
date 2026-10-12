@@ -39,27 +39,30 @@ beforeEach(() => {
 })
 afterEach(() => app?.unmount())
 
-describe('Seller order list', () => {
-  it('renders the approved list with real response totals and a detail link for every order', async () => {
-    mocks.list.mockResolvedValueOnce({ data: [{ ...fixture(), recipient_name: 'Minh Anh' }], pagination: { page: 1, totalItems: 1, totalPages: 1 } })
+describe('Test giao diện danh sách Order của người bán', () => {
+  it('Case 1 - Hiển thị tên đơn tên khách tổng tiền và liên kết chi tiết từ dữ liệu API', async () => {
+    // Cho tên khách khác tên người nhận để kiểm tra bảng dùng đúng customer_name.
+    mocks.list.mockResolvedValueOnce({ data: [{ ...fixture(), customer_name: 'Minh Anh', recipient_name: 'Other Recipient' }], pagination: { page: 1, totalItems: 1, totalPages: 1 } })
     await mount(SellerOrderListView)
     const html = await renderToString(createSSRApp({ ...SellerOrderListView, setup: () => state }, { currentUser: { id: 1 } }))
-    expect(html).toContain('#0012')
+    expect(html).toContain('Order ORD-test')
+    expect(html).not.toContain('#0012')
+    expect(html).not.toContain('Other Recipient')
     expect(html).toContain('Minh Anh')
     expect(html).toContain('220')
     expect(html).toContain('Unpaid')
-    expect(html).toContain('View order #0012')
+    expect(html).toContain('View order Order ORD-test')
     const headings = [...html.matchAll(/<th\b[^>]*>([^<]*)<\/th>/g)].map(match => match[1])
     expect(headings).toEqual(['Order', 'Customer', 'Financial status', 'Total'])
     expect(html).not.toContain('<th>Fulfillment</th>')
     expect(html).not.toContain('<th>Qty</th>')
     expect(html).not.toContain('Seller workspace / Orders')
   })
-  it('does not request private data before sign-in', async () => {
+  it('Case 2 - Không gọi API lấy dữ liệu riêng khi chưa đăng nhập', async () => {
     await mount(SellerOrderListView, null)
     expect(mocks.list).not.toHaveBeenCalled()
   })
-  it('restores filters and pagination from the route and rejects unknown status values locally', async () => {
+  it('Case 3 - Khôi phục bộ lọc và trang từ URL đồng thời loại trạng thái không hợp lệ', async () => {
     mocks.route.query = { q: 'Minh', page: '2', order_status: 'confirmed', fulfillment_status: 'unknown', sort: 'oldest' }
     await mount(SellerOrderListView)
     expect(mocks.list).toHaveBeenCalledWith({ q: 'Minh', page: 2, limit: 10, order_status: 'confirmed',
@@ -68,7 +71,7 @@ describe('Seller order list', () => {
     await state.apply()
     expect(mocks.push).toHaveBeenCalledWith({ name: 'seller-order-list', query: expect.objectContaining({ q: 'ORD-test', page: '1' }) })
   })
-  it('discards older responses when a newer list request finishes first', async () => {
+  it('Case 4 - Bỏ phản hồi cũ khi yêu cầu lấy danh sách mới hoàn thành trước', async () => {
     let finish
     mocks.list.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
     await mount(SellerOrderListView)
@@ -78,7 +81,7 @@ describe('Seller order list', () => {
     await settle()
     expect(state.items).toEqual([{ id: 20 }])
   })
-  it('clearing search restores the list on page one while keeping financial filters and sorting', async () => {
+  it('Case 5 - Xóa search trở về trang đầu và giữ bộ lọc thanh toán cùng sắp xếp', async () => {
     mocks.route.query = { q: 'Minh', page: '3', financial_status: 'paid', sort: 'total_desc' }
     await mount(SellerOrderListView)
     state.filters.q = ''
@@ -87,7 +90,7 @@ describe('Seller order list', () => {
       q: '', page: '1', financial_status: 'paid', sort: 'total_desc'
     }) })
   })
-  it('applies combined filters and total sorting only when confirmed, resetting pagination', async () => {
+  it('Case 6 - Chỉ áp dụng bộ lọc sau khi xác nhận và đặt lại trang đầu', async () => {
     mocks.route.query = { q: 'Minh', page: '3', sort: 'total_desc' }
     await mount(SellerOrderListView)
     expect(mocks.list).toHaveBeenCalledWith(expect.objectContaining({ sort: 'total_desc', page: 3 }))
@@ -102,7 +105,7 @@ describe('Seller order list', () => {
     }) })
     expect(state.filterMenuOpen).toBe(false)
   })
-  it('discards unconfirmed menu changes and resets filters without clearing search', async () => {
+  it('Case 7 - Bỏ thay đổi chưa xác nhận và đặt lại bộ lọc mà vẫn giữ search', async () => {
     mocks.route.query = { q: 'Minh', financial_status: 'paid', sort: 'oldest' }
     await mount(SellerOrderListView)
     state.toggleFilterMenu()
@@ -116,8 +119,8 @@ describe('Seller order list', () => {
     }) })
   })
 })
-describe('Seller order detail', () => {
-  it('renders order snapshots and only actions returned by the backend', async () => {
+describe('Test giao diện chi tiết Order của người bán', () => {
+  it('Case 1 - Hiển thị thông tin đơn và chỉ cho thao tác được backend cho phép', async () => {
     await mount(SellerOrderDetailView)
     const html = await renderToString(createSSRApp({ ...SellerOrderDetailView, setup: () => state }, { currentUser: { id: 1 } }))
     for (const text of ['Running shoe', '#0012', 'Mark as shipped', 'Quantity', 'Customer Name', 'buyer@example.com', '0901234567']) expect(html).toContain(text)
@@ -139,7 +142,7 @@ describe('Seller order detail', () => {
     expect(header).not.toContain('<button')
     expect(header).not.toContain('Financial status')
   })
-  it('keeps history and status data from the API without adding extra sections', async () => {
+  it('Case 2 - Hiển thị lịch sử và trạng thái đúng dữ liệu API không thêm mục ngoài thiết kế', async () => {
     const data = { ...fixture(), confirmed_at: '2026-10-01T11:00:00Z', cancellation_reason: 'Customer changed plans',
       events: [{ id: 1, action: 'confirm', created_at: '2026-10-01T11:00:00Z' },
         { id: 2, action: 'cancel', created_at: '2026-10-01T12:00:00Z', reason: 'Customer changed plans' }] }
@@ -156,7 +159,7 @@ describe('Seller order detail', () => {
     expect(html).not.toContain('Discount')
     expect(html).not.toContain('Tracking number')
   })
-  it.each([[401, 'Sign in to view this order'], [403, 'Order access unavailable'], [404, 'Order not found']])('handles detail access error %s without displaying private data', async (status, title) => {
+  it.each([[401, 'Sign in to view this order'], [403, 'Order access unavailable'], [404, 'Order not found']])('Case 3 - Xử lý lỗi truy cập %s và không hiển thị dữ liệu riêng', async (status, title) => {
     mocks.get.mockRejectedValueOnce(Object.assign(new Error(title), { status }))
     await mount(SellerOrderDetailView)
     const html = await renderToString(createSSRApp({ ...SellerOrderDetailView, setup: () => state }, { currentUser: { id: 1 } }))
@@ -164,7 +167,7 @@ describe('Seller order detail', () => {
     expect(html).toContain(title)
     expect(html).not.toContain('Running shoe')
   })
-  it('does not call an update twice if the update succeeds but refreshing fails', async () => {
+  it('Case 4 - Không gửi cập nhật lần hai khi cập nhật thành công nhưng tải lại bị lỗi', async () => {
     await mount(SellerOrderDetailView)
     state.selectAction('shipped')
     mocks.update.mockResolvedValueOnce({ data: { ...fixture(), fulfillment_status: 'shipped', allowed_actions: ['delivered'] } })
@@ -177,7 +180,7 @@ describe('Seller order detail', () => {
     await state.perform()
     expect(mocks.update).toHaveBeenCalledTimes(1)
   })
-  it('requires a cancellation reason and submits the current order version', async () => {
+  it('Case 5 - Yêu cầu lý do hủy và gửi đúng phiên bản hiện tại của đơn', async () => {
     await mount(SellerOrderDetailView)
     state.selectAction('cancel')
     await state.perform()
@@ -192,7 +195,7 @@ describe('Seller order detail', () => {
     expect(state.action).toBe('')
     expect(mocks.get).toHaveBeenCalledTimes(2)
   })
-  it('blocks duplicate clicks and unavailable actions', async () => {
+  it('Case 6 - Chặn nhấn lặp và thao tác không được phép', async () => {
     await mount(SellerOrderDetailView)
     state.selectAction('mark-paid')
     await state.perform()
@@ -207,7 +210,7 @@ describe('Seller order detail', () => {
     await first
     expect(state.busy).toBe(false)
   })
-  it('reloads the order on a stale-version conflict without repeating the action', async () => {
+  it('Case 7 - Tải lại khi xung đột phiên bản và không tự lặp thao tác', async () => {
     await mount(SellerOrderDetailView)
     state.selectAction('shipped')
     mocks.update.mockRejectedValueOnce(Object.assign(new Error('Order changed'), { status: 409 }))
@@ -218,7 +221,7 @@ describe('Seller order detail', () => {
     expect(state.error).toContain('latest order')
     expect(mocks.update).toHaveBeenCalledTimes(1)
   })
-  it('discards action responses after the viewed order changes', async () => {
+  it('Case 8 - Bỏ phản hồi thao tác cũ khi đã chuyển sang đơn khác', async () => {
     await mount(SellerOrderDetailView)
     let finish
     mocks.update.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))

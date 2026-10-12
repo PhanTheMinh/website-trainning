@@ -1,258 +1,240 @@
-const request = require('supertest')
-const { v4: uuid } = require('uuid')
-const app = require('../src/app')
-const sequelize = require('../src/config/database')
-const { User, Shop, Category, Product, ProductVariant, Country, ShippingMethod, ShippingRate,
-    PaymentMethod, CheckoutToken, Customer, Order, OrderItem, OrderAddress, OrderEvent } = require('../src/models')
-const { hashPassword } = require('../src/utils/hash')
+const fixture = require('./helpers/seller-orders-search-fixture')
+const { seed, cleanup, agents, orders, Customer, Order, shops } = fixture
 
-const stamp = uuid()
-const users = [], shops = [], variants = [], rates = [], agents = [], orders = []
-const email = `order-search-${stamp}@example.com`
-const defaults = { first_name: 'Search', last_name: 'Customer', email, phone: '+84901234567',
-    country_code: 'VN', province_state: 'Hải Dương', city: 'Hanoi', street: 'Test street', house_number: '12', zip_code: '03127' }
-
-async function search(agent, q, options = {}) {
-    const response = await agent.get('/api/shops/me/orders').query({ q, ...options })
+async function search(q, options = {}) {
+    const response = await agents[0].get('/api/shops/me/orders').query({ q, ...options })
     expect(response.status).toBe(200)
     return response.body
 }
 
-describe('Seller Order List search integration', () => {
-    beforeAll(async () => {
-        const category = await Category.findOne({ where: { slug: 'giay-chay-bo' } })
-        const password = await hashPassword('123456')
-        for (let i = 0; i < 2; i++) {
-            const user = await User.create({ full_name: `Search seller ${i}`, email: `seller-search-${stamp}-${i}@example.com`,
-                password, role: 'user', status: 'active' })
-            users.push(user)
-            const shop = await Shop.create({ owner_user_id: user.id, name: `Search shop ${i}`, slug: `search-${stamp}-${i}`, status: 'active' })
-            shops.push(shop)
-            const product = await Product.create({ owner_id: user.id, shop_id: shop.id, title: `Search shoe ${i}`,
-                description: 'Order search integration fixture.', category: category.slug, category_id: category.id,
-                price: 100000, stock: 100, status: 'active' })
-            variants.push(await ProductVariant.create({ product_id: product.id, sku: `SEARCH-${stamp}-${i}`, variant_key: 'default',
-                price: 100000, stock_quantity: 100, status: 'active', is_default: true }))
-            const country = await Country.create({ shop_id: shop.id, name: 'Vietnam', country_code: 'VN', phone_code: '+84' })
-            const method = await ShippingMethod.create({ shop_id: shop.id, name: 'Standard', code: 'standard', status: 'active' })
-            const rate = await ShippingRate.create({ shipping_method_id: method.id, min_delivery_days: 1, max_delivery_days: 3, fixed_fee: 30000 })
-            rates.push(rate)
-            await rate.addCountry(country)
-            await PaymentMethod.create({ user_id: user.id, name: 'Cash on delivery', payment_data: { type: 'cod' }, is_active: true, is_deleted: false })
-            const agent = request.agent(app)
-            agents.push(agent)
-            expect((await agent.post('/api/auth/login').send({ email: user.email, password: '123456' })).status).toBe(200)
+// Lưu dữ liệu ban đầu và luôn khôi phục, kể cả khi một assertion thất bại.
+async function withNames(orderChanges, customerChanges, check) {
+    const originals = []
+    try {
+        for (const [model, changes] of [[Order, orderChanges], [Customer, customerChanges]]) {
+            for (const [id, values] of changes) {
+                const row = await model.findByPk(id)
+                const previous = Object.fromEntries(Object.keys(values).map(key => [key, row.get(key)]))
+                originals.push([row, previous])
+                await row.update(values)
+            }
         }
-        // Real multi-shop checkouts create a matching order in each shop.
-        for (const [index, address] of [{}, {}, { first_name: 'Literal%_', last_name: 'Name' }].entries()) {
-            const checkout = await agents[0].post('/api/checkout').send({ request_id: uuid(), items: variants.map(variant => ({
-                product_id: Number(variant.product_id), variant_id: Number(variant.id), quantity: index + 1 })) })
-            expect(checkout.status).toBe(201)
-            const draft = await agents[0].patch(`/api/checkout/${checkout.body.data.token}`).send({ version: 1,
-                shipping_address: { ...defaults, ...address },
-                shipping_selections: Object.fromEntries(shops.map((shop, i) => [shop.id, Number(rates[i].id)])),
-                payment_method_id: checkout.body.data.payment_options[0].id })
-            expect(draft.status).toBe(200)
-            const created = await agents[0].post('/api/orders').send({ checkout_token: draft.body.data.token,
-                version: draft.body.data.version, request_id: uuid() })
-            expect(created.status).toBe(201)
-            orders.push(created.body.data.orders)
-        }
-        await Order.update({ payment_status: 'paid' }, { where: { id: orders[1][0].id } })
-        // Every internal code/name contains the target number: numeric search must still return only its ID.
-        for (const [index, order] of orders.flat().entries()) {
-            order.order_code = `SEARCH-${stamp.slice(0, 8)}-${orders[0][0].id}-${index}`
-            order.order_name = `Internal order ${orders[0][0].id}`
-            await Order.update({ order_code: order.order_code, order_name: order.order_name }, { where: { id: order.id } })
-        }
-    }, 30000)
+        await check()
+    } finally {
+        for (const [row, values] of originals.reverse()) await row.update(values)
+    }
+}
 
-    afterAll(async () => {
-        try {
-            const rows = await Order.findAll({ where: { user_id: users.map(user => user.id) } })
-            const ids = rows.map(order => order.id)
-            for (const model of [OrderEvent, OrderItem, OrderAddress]) await model.destroy({ where: { order_id: ids } })
-            await Order.destroy({ where: { id: ids } })
-            await Customer.destroy({ where: { email_key: email } })
-            await CheckoutToken.destroy({ where: { user_id: users.map(user => user.id) } })
-            await ShippingRate.destroy({ where: { id: rates.map(rate => rate.id) } })
-            await User.destroy({ where: { id: users.map(user => user.id) } })
-        } finally { await sequelize.close() }
-    })
+describe('Test API tìm kiếm Order với từ khóa số và các tình huống phân trang', () => {
+    // Chuẩn bị dữ liệu riêng và dọn dữ liệu sau khi chạy nhóm test.
+    beforeAll(seed, 30000)
+    afterAll(cleanup)
 
-    it.each(['Search', 'Customer', 'Search Customer', '  Search Customer  '])('finds customer name "%s"', async q => {
-        const result = await search(agents[0], q)
-        expect(result.pagination.totalItems).toBe(2)
-        expect(result.data.map(order => order.id).sort((a, b) => a - b)).toEqual([orders[0][0].id, orders[1][0].id].sort((a, b) => a - b))
-        expect(result.data.every(order => order.shop_id === shops[0].id)).toBe(true)
-    })
-
-    it('does not search internal order names or codes', async () => {
-        for (const q of [orders[0][0].order_name, orders[0][0].order_code]) {
-            const result = await search(agents[0], q)
-            expect(result.pagination.totalItems).toBe(0)
-            expect(result.data).toEqual([])
-        }
-    })
-
-    it.each(['number', 'hash', 'padded', 'displayed name', 'surrounding spaces'])('finds the displayed order name using %s', async format => {
-        const id = orders[0][0].id
-        const displayedName = `#${String(id).padStart(4, '0')}`
-        console.log('Log data =========>', {
-            displayedName: displayedName,
-            id: id,
-        })
-        const queries = { number: String(id), hash: `#${id}`, padded: String(id).padStart(8, '0'),
-            'displayed name': displayedName, 'surrounding spaces': `  ${displayedName}  ` }
-        const result = await search(agents[0], queries[format])
-        expect(result.pagination).toMatchObject({ totalItems: 1, totalPages: 1 })
-        expect(result.data.map(order => order.id)).toEqual([id])
-        expect(result.data[0]).toMatchObject({ shop_id: shops[0].id, recipient_name: 'Search Customer' })
-        // All fixture order codes contain this number; they must not broaden the results.
-        expect(orders.flat().every(order => order.order_code.includes(String(id)))).toBe(true)
-    })
-
-    it('finds order by partial displayed name', async () => {
-        const order = orders
-            .flat()
-            .find(order => {
-                const displayedName = `#${String(order.id).padStart(4, '0')}`
-                return displayedName.includes('000')
-            })
-
-        expect(order).toBeDefined()
-
-        const id = order.id
-        const displayedName = `#${String(id).padStart(4, '0')}`
-        const query = displayedName.replace('#', '').slice(0, 3)
-
-        const result = await search(agents[0], query)
-
-        expect(result.pagination).toMatchObject({
-            totalItems: 1,
-            totalPages: 1,
-        })
-        expect(result.data.map(order => order.id)).toEqual([id])
-        expect(result.data[0]).toMatchObject({
-            shop_id: shops[0].id,
-            recipient_name: 'Search Customer',
-        })
-    })
-
-
-
-it('finds order by searching 000 in displayed order name', async () => {
-    const result = await search(agents[0], '000')
-
-    expect(result.pagination).toMatchObject({
-        totalItems: 1,
-        totalPages: 1,
-    })
-
-    expect(result.data).toHaveLength(1)
-
-    const order = result.data[0]
-    const displayedName = `#${String(order.id).padStart(4, '0')}`
-
-    expect(displayedName).toContain('000')
-    expect(order).toMatchObject({
-        shop_id: shops[0].id,
-        recipient_name: 'Search Customer',
-    })
-})
-
-
-    it('finds orders by a partial padded displayed order name', async () => {
-        const q = String(orders[0][0].id).padStart(4, '0').slice(0, 3)
-        const result = await search(agents[0], q)
-        expect(result.data.length).toBeGreaterThan(0)
-        expect(result.data.every(order => order.shop_id === shops[0].id)).toBe(true)
-        expect(result.data.every(order => `#${String(order.id).padStart(4, '0')}`.includes(q))).toBe(true)
-    })
-
-    it('does not match a different customer whose name contains the searched order number', async () => {
+    it('Case 1 - Từ khóa số vẫn tìm trong tên đơn và tên khách hàng', async () => {
         const target = orders[0][0]
         const other = orders[2][0]
-        const snapshot = await OrderAddress.findOne({ where: { order_id: other.id } })
-        const previous = snapshot.recipient_first_name
+        const customer = await Customer.findByPk(other.customer_id)
+        const previous = customer.first_name
+        const number = String(target.id)
         try {
-            await snapshot.update({ recipient_first_name: `Customer ${target.id}` })
-            const result = await search(agents[0], String(target.id))
-            expect(result.pagination.totalItems).toBe(1)
-            expect(result.data.map(order => order.id)).toEqual([target.id])
-        } finally { await snapshot.update({ recipient_first_name: previous }) }
-    })
-
-    it('returns no orders when the displayed name does not exist', async () => {
-        for (const q of ['#0000', '#9007199254740991', '9007199254740992']) {
-            const result = await search(agents[0], q)
-            expect(result.pagination.totalItems).toBe(0)
-            expect(result.data).toEqual([])
+            // Cho cùng một số xuất hiện trong tên đơn và tên của khách khác.
+            await customer.update({ first_name: `Customer ${number}` })
+            await Order.update({ order_name: `Number ${number}` }, { where: { id: target.id } })
+            const result = await search(number)
+            const expected = orders.map(group => group[0])
+                .filter(row => row.id === target.id || row.id === other.id || row.order_name.includes(number))
+                .map(row => row.id)
+            expect(result.data.map(row => row.id).sort()).toEqual(expected.sort())
+        } finally {
+            // Khôi phục tên để không ảnh hưởng các test tiếp theo.
+            await customer.update({ first_name: previous })
+            await Order.update({ order_name: target.order_name }, { where: { id: target.id } })
         }
     })
 
-    it('keeps financial filters and pagination when searching the displayed order name', async () => {
-        const name = `#${String(orders[1][0].id).padStart(4, '0')}`
-        const paid = await search(agents[0], name, { financial_status: 'paid', limit: 1 })
-        expect(paid.data.map(order => order.id)).toEqual([orders[1][0].id])
-        expect(paid.pagination).toMatchObject({ totalItems: 1, totalPages: 1, page: 1 })
-        const unpaid = await search(agents[0], name, { financial_status: 'unpaid' })
-        expect(unpaid.data).toEqual([])
-        expect(unpaid.pagination.totalItems).toBe(0)
-        const nextPage = await search(agents[0], name, { financial_status: 'paid', limit: 1, page: 2 })
-        expect(nextPage.data).toEqual([])
-        expect(nextPage.pagination).toMatchObject({ totalItems: 1, totalPages: 1, page: 2 })
-    })
-
-    it('rejects a displayed order name belonging to another shop', async () => {
-        const foreign = orders[0][1]
-        const name = `#${String(foreign.id).padStart(4, '0')}`
-        const hidden = await search(agents[0], name)
-        expect(hidden.data).toEqual([])
-        expect(hidden.pagination.totalItems).toBe(0)
-        const owned = await search(agents[1], name)
-        expect(owned.data.map(order => order.id)).toEqual([foreign.id])
-        expect(owned.data[0].shop_id).toBe(shops[1].id)
-    })
-
-    it.each(['%', '_', 'Literal%_ Name'])('treats "%s" literally instead of as SQL wildcards', async q => {
-        const result = await search(agents[0], q)
-        expect(result.pagination.totalItems).toBe(1)
-        expect(result.data.map(order => order.id)).toEqual([orders[2][0].id])
-    })
-
-    it('returns an empty result for unknown names and SQL-like input', async () => {
-        for (const q of ['No such customer', "' OR 1=1 --"]) {
-            const result = await search(agents[0], q)
-            expect(result.data).toEqual([])
-            expect(result.pagination.totalItems).toBe(0)
+    it('Case 2 - Không tìm theo ID khi tên đơn và tên khách không chứa chữ số', async () => {
+        const original = orders.flat()
+        try {
+            // Đổi tên đơn thành chữ để chắc chắn ID không trùng chuỗi trong tên.
+            for (const [index, row] of original.entries()) {
+                await Order.update({ order_name: `Alphabet ${String.fromCharCode(65 + index)}` }, { where: { id: row.id } })
+            }
+            for (const q of [String(orders[0][0].id), String(orders[0][0].customer_id), `#${orders[0][0].id}`]) {
+                expect((await search(q)).data).toEqual([])
+            }
+        } finally {
+            for (const row of original) {
+                await Order.update({ order_name: row.order_name }, { where: { id: row.id } })
+            }
         }
     })
 
-    it('does not return another shop order by name, code or order number', async () => {
-        const foreign = orders[0][1]
-        for (const q of [foreign.order_name, foreign.order_code, `#${foreign.id}`]) {
-            const result = await search(agents[0], q)
-            expect(result.data).toEqual([])
-            expect(result.pagination.totalItems).toBe(0)
+    it('Case 3 - Giữ bộ lọc và tổng số kết quả khi trang tiếp theo không có đơn', async () => {
+        const name = orders[1][0].order_name
+        const paid = await search(name, { financial_status: 'paid', limit: 1 })
+        expect(paid.data.map(row => row.id)).toEqual([orders[1][0].id])
+        expect(paid.pagination).toMatchObject({ totalItems: 1, totalPages: 1 })
+        expect((await search(name, { financial_status: 'unpaid' })).data).toEqual([])
+        const next = await search(name, { financial_status: 'paid', limit: 1, page: 2 })
+        expect(next.data).toEqual([])
+        expect(next.pagination).toMatchObject({ totalItems: 1, totalPages: 1, page: 2 })
+    })
+
+    it('Case 4 - Xóa từ khóa sẽ lấy lại danh sách đơn trong shop hiện tại', async () => {
+        expect((await search(orders[0][0].order_name)).pagination.totalItems).toBe(1)
+        expect((await search('')).pagination.totalItems).toBe(3)
+    })
+
+    it.each([undefined, '', '   ', '\t\n'])('Case 5 - Từ khóa rỗng "%s" trả toàn bộ đơn thuộc shop', async q => {
+        const result = await search(q)
+        expect(result.pagination.totalItems).toBe(3)
+        expect(result.data.map(row => row.id).sort()).toEqual(orders.map(group => group[0].id).sort())
+    })
+
+    it('Case 6 - Chấp nhận tên đơn có đúng 100 ký tự', async () => {
+        const name = 'A'.repeat(100)
+        await withNames([[orders[0][0].id, { order_name: name }]], [], async () => {
+            expect((await search(name)).data.map(row => row.id)).toEqual([orders[0][0].id])
+        })
+    })
+
+    it.each([
+        ['101 ký tự', { q: 'A'.repeat(101) }],
+        ['mảng từ khóa', { q: ['Search', 'Customer'] }],
+        ['object từ khóa', { q: { term: 'Search' } }],
+        ['tham số không hỗ trợ', { q: 'Search', unsupported: 'value' }],
+        ['trang bằng 0', { q: 'Search', page: 0 }],
+        ['trang âm', { q: 'Search', page: -1 }],
+        ['trang không nguyên', { q: 'Search', page: 1.5 }],
+        ['limit vượt 100', { q: 'Search', limit: 101 }],
+        ['limit bằng 0', { q: 'Search', limit: 0 }],
+        ['sort không hợp lệ', { q: 'Search', sort: 'invalid' }],
+        ['trạng thái đơn không hợp lệ', { q: 'Search', order_status: 'invalid' }]
+    ])('Case 7 - Trả lỗi 400 với đầu vào %s', async (_label, query) => {
+        const response = await agents[0].get('/api/shops/me/orders').query(query)
+        expect(response.status).toBe(400)
+    })
+
+    it('Case 8 - Nhiều đơn cùng tên trả đủ kết quả và phân trang không lặp', async () => {
+        const ownIds = orders.map(group => group[0].id)
+        await withNames(ownIds.map(id => [id, { order_name: 'Same Order Name' }]), [], async () => {
+            const found = []
+            for (let page = 1; page <= 3; page++) {
+                const result = await search('Same Order Name', { page, limit: 1, sort: 'oldest' })
+                expect(result.pagination).toMatchObject({ totalItems: 3, totalPages: 3 })
+                found.push(...result.data.map(row => row.id))
+            }
+            expect(new Set(found).size).toBe(3)
+            expect(found.sort()).toEqual(ownIds.sort())
+        })
+    })
+
+    it('Case 9 - Một đơn khớp cả tên Order và Customer vẫn chỉ xuất hiện một lần', async () => {
+        const target = orders[0][0]
+        await withNames([[target.id, { order_name: 'DoubleMatch Order' }]],
+            [[target.customer_id, { first_name: 'DoubleMatch' }]], async () => {
+                const result = await search('DoubleMatch')
+                expect(result.pagination.totalItems).toBe(1)
+                expect(result.data.map(row => row.id)).toEqual([target.id])
+            })
+    })
+
+    it('Case 10 - Hai shop có tên đơn giống nhau vẫn chỉ trả đơn của shop đăng nhập', async () => {
+        const own = orders[0][0], foreign = orders[0][1]
+        await withNames([[own.id, { order_name: 'Shared Shop Name' }],
+            [foreign.id, { order_name: 'Shared Shop Name' }]], [], async () => {
+            expect((await search('Shared Shop Name')).data.map(row => row.id)).toEqual([own.id])
+            const other = await agents[1].get('/api/shops/me/orders').query({ q: 'Shared Shop Name' })
+            expect(other.status).toBe(200)
+            expect(other.body.data.map(row => row.id)).toEqual([foreign.id])
+        })
+    })
+
+    it.each(['%', '_', '\\', "'", 'Đơn hàng Nguyễn Văn An', 'Case+Order#'])(
+        'Case 11 - Tìm đúng ký tự và tên Unicode "%s" trong order_name', async keyword => {
+        const target = orders[0][0]
+        // Thay mọi tên đơn để chỉ một bản ghi chứa ký tự được kiểm tra.
+        const changes = orders.flat().map(row => [row.id,
+            { order_name: row.id === target.id ? `Special ${keyword} End` : 'Plain Order' }])
+        await withNames(changes, [], async () => {
+            const result = await search(`Special ${keyword} End`)
+            expect(result.data.map(row => row.id)).toEqual([target.id])
+            expect(result.data[0].order_name).toBe(`Special ${keyword} End`)
+        })
+    })
+
+    it.each([
+        ['pending', 'unpaid', 'unfulfilled'],
+        ['confirmed', 'paid', 'delivered'],
+        ['cancelled', 'unpaid', 'cancelled']
+    ])('Case 12 - Search giữ đồng thời bộ lọc %s %s %s', async (status, payment, fulfillment) => {
+        const target = orders[0][0]
+        await withNames([[target.id, { status, payment_status: payment, fulfillment_status: fulfillment }]], [], async () => {
+            const result = await search(target.order_name, { order_status: status,
+                financial_status: payment, fulfillment_status: fulfillment })
+            expect(result.data.map(row => row.id)).toEqual([target.id])
+            expect((await search(target.order_name, { financial_status: payment === 'paid' ? 'unpaid' : 'paid' })).data).toEqual([])
+        })
+    })
+
+    it.each(['newest', 'oldest', 'total_desc', 'total_asc'])(
+        'Case 13 - Sắp xếp %s ổn định khi thời gian và tổng tiền bằng nhau', async sort => {
+        const ids = orders.map(group => group[0].id)
+        await withNames(ids.map(id => [id, { order_name: 'Tie Order', order_total: '130000.00',
+            created_at: new Date('2026-01-01T00:00:00Z') }]), [], async () => {
+            const found = []
+            for (let page = 1; page <= 3; page++) {
+                found.push(...(await search('Tie Order', { sort, page, limit: 1 })).data.map(row => row.id))
+            }
+            const expected = ids.sort((a, b) => sort === 'oldest' ? a - b : b - a)
+            expect(found).toEqual(expected)
+        })
+    })
+
+    it.each(['order_code', 'order_total', 'status'])('Case 14 - Không tìm riêng theo trường %s', async field => {
+        const target = orders[0][0]
+        const row = await Order.findByPk(target.id)
+        // Tên chỉ gồm chữ để số tiền không vô tình khớp tên đơn.
+        await withNames(orders.flat().map(order => [order.id, { order_name: 'Plain Name' }]), [], async () => {
+            expect((await search(String(row.get(field)))).data).toEqual([])
+        })
+    })
+
+    it('Case 15 - Search bị từ chối khi shop bị đình chỉ', async () => {
+        const { Shop } = require('../src/models')
+        const shop = await Shop.findByPk(shops[0].id)
+        try {
+            await shop.update({ status: 'suspended' })
+            const response = await agents[0].get('/api/shops/me/orders').query({ q: 'Search' })
+            expect(response.status).toBe(403)
+        } finally {
+            await shop.update({ status: 'active' })
         }
-        const secondShop = await search(agents[1], 'Search Customer')
-        expect(secondShop.pagination.totalItems).toBe(2)
-        expect(secondShop.data.every(order => order.shop_id === shops[1].id)).toBe(true)
     })
 
-    it('combines search with financial filtering and total sorting before pagination', async () => {
-        const paid = await search(agents[0], 'Search Customer', { financial_status: 'paid' })
-        expect(paid.data.map(order => order.id)).toEqual([orders[1][0].id])
-        const first = await search(agents[0], 'Search Customer', { sort: 'total_desc', limit: 1, page: 1 })
-        const second = await search(agents[0], 'Search Customer', { sort: 'total_desc', limit: 1, page: 2 })
-        expect(first.pagination).toMatchObject({ totalItems: 2, totalPages: 2, page: 1 })
-        expect(first.data.map(order => order.id)).toEqual([orders[1][0].id])
-        expect(second.data.map(order => order.id)).toEqual([orders[0][0].id])
-    })
-
-    it('requires authentication and rejects an oversized search', async () => {
-        expect((await request(app).get('/api/shops/me/orders').query({ q: 'Search' })).status).toBe(401)
-        expect((await agents[0].get('/api/shops/me/orders').query({ q: 'x'.repeat(101) })).status).toBe(400)
+    it('Case 16 - Order nhiều sản phẩm không bị lặp dòng hoặc đếm sai kết quả', async () => {
+        const { OrderItem, ProductVariant } = require('../src/models')
+        const target = orders[0][0]
+        const original = await OrderItem.findOne({ where: { order_id: target.id } })
+        const values = original.toJSON()
+        delete values.id
+        delete values.createdAt
+        delete values.updatedAt
+        let extra, variant
+        try {
+            // Mỗi dòng dùng một variant riêng vì order_id + product_variant_id là unique.
+            variant = await ProductVariant.create({ product_id: original.product_id,
+                sku: `SEARCH-EXTRA-${target.id}`, variant_key: 'search-extra',
+                price: original.unit_price, stock_quantity: 10, status: 'active', is_default: false })
+            extra = await OrderItem.create({ ...values, product_variant_id: variant.id,
+                sku: variant.sku, quantity: 2, line_total: '200000.00' })
+            const result = await search(target.order_name, { limit: 1 })
+            expect(result.pagination).toMatchObject({ totalItems: 1, totalPages: 1 })
+            expect(result.data).toHaveLength(1)
+            expect(result.data[0].item_quantity).toBe(Number(original.quantity) + 2)
+        } finally {
+            if (extra) await extra.destroy()
+            if (variant) await variant.destroy()
+        }
     })
 })

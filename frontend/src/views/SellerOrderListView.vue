@@ -137,11 +137,11 @@ watch([() => props.currentUser?.id, () => props.sessionLoading, () => route.full
           <colgroup><col class="rs-list-col-order" /><col class="rs-list-col-customer" /><col class="rs-list-col-payment" /><col class="rs-list-col-total" /><col class="rs-list-col-action" /></colgroup>
           <thead><tr><th>Order</th><th>Customer</th><th>Financial status</th><th class="rs-list-total">Total</th><th><span class="sr-only">Actions</span></th></tr></thead>
           <tbody><tr v-for="order in items" :key="order.id">
-            <td class="rs-list-order-cell"><div class="rs-list-order-title"><RouterLink :to="{ name: 'seller-order-detail', params: { id: order.id }, query: route.query }">#{{ String(order.id).padStart(4, '0') }}</RouterLink></div><small>{{ orderDate(order.created_at) }}</small></td>
-            <td class="rs-list-customer-cell" data-label="Customer"><span class="rs-list-customer">{{ order.recipient_name || '—' }}</span></td>
+            <td class="rs-list-order-cell"><div class="rs-list-order-title"><RouterLink :to="{ name: 'seller-order-detail', params: { id: order.id }, query: route.query }">{{ order.order_name || '—' }}</RouterLink></div><small>{{ orderDate(order.created_at) }}</small></td>
+            <td class="rs-list-customer-cell" data-label="Customer"><span class="rs-list-customer">{{ order.customer_name || '—' }}</span></td>
             <td class="rs-list-payment-cell" data-label="Financial status"><span class="rs-list-status" :data-status="order.financial_status"><span class="rs-list-status-dot" aria-hidden="true"></span>{{ financialStatuses[order.financial_status] || order.financial_status }}</span></td>
             <td class="rs-list-total" data-label="Total"><strong>{{ formatCurrency(order.order_total) }}</strong></td>
-            <td class="rs-list-action-cell"><RouterLink class="rs-list-view" :aria-label="`View order #${String(order.id).padStart(4, '0')}`" :to="{ name: 'seller-order-detail', params: { id: order.id }, query: route.query }">View<UiIcon name="arrow" :size="15" /></RouterLink></td>
+            <td class="rs-list-action-cell"><RouterLink class="rs-list-view" :aria-label="`View order ${order.order_name || '—'}`" :to="{ name: 'seller-order-detail', params: { id: order.id }, query: route.query }">View<UiIcon name="arrow" :size="15" /></RouterLink></td>
           </tr></tbody>
         </table></div>
       </section>

@@ -20,18 +20,13 @@ async function listOrders(userId, options) {
     if (options.financial_status !== 'all') where.payment_status = options.financial_status
     if (options.fulfillment_status !== 'all') where.fulfillment_status = options.fulfillment_status
     if (options.q) {
-        const orderId = options.q.match(/^#?(\d+)$/)
-        if (orderId) {
-            const id = Number(orderId[1])
-            where.id = Number.isSafeInteger(id) && id > 0 ? id : 0
-        } else {
-            const search = { [Op.like]: `%${options.q.replace(/[\\%_]/g, '\\$&')}%` }
-            where[Op.or] = [
-                { '$address.recipient_first_name$': search },
-                { '$address.recipient_last_name$': search },
-                sqlWhere(fn('CONCAT_WS', ' ', col('address.recipient_first_name'), col('address.recipient_last_name')), search)
-            ]
-        }
+        const search = { [Op.like]: `%${options.q.replace(/[\\%_]/g, '\\$&')}%` }
+        where[Op.or] = [
+            { order_name: search },
+            { '$customer.first_name$': search },
+            { '$customer.last_name$': search },
+            sqlWhere(fn('CONCAT_WS', ' ', col('customer.first_name'), col('customer.last_name')), search)
+        ]
     }
     const direction = options.sort === 'oldest' ? 'ASC' : 'DESC'
     const orderBy = options.sort === 'total_desc' || options.sort === 'total_asc'
@@ -39,9 +34,10 @@ async function listOrders(userId, options) {
         : [['created_at', direction], ['id', direction]]
     const result = await Order.findAndCountAll({
         where,
-        attributes: ['id', 'order_code', 'shop_id', 'status', 'payment_status', 'currency',
+        attributes: ['id', 'order_code', 'order_name', 'shop_id', 'status', 'payment_status', 'currency',
             'sub_total', 'shipping_fee', 'order_total', 'created_at', 'fulfillment_status'],
         include: [
+            { association: 'customer', attributes: ['first_name', 'last_name'] },
             { model: OrderAddress, as: 'address', attributes: ['recipient_first_name', 'recipient_last_name'] },
             // Fetch quantities after pagination; joining all items would duplicate order rows/counts.
             { model: OrderItem, as: 'items', attributes: ['quantity'], separate: true }
@@ -57,6 +53,8 @@ async function listOrders(userId, options) {
             return {
                 id: order.id,
                 order_code: order.order_code,
+                order_name: order.order_name,
+                customer_name: [order.customer?.first_name, order.customer?.last_name].filter(Boolean).join(' '),
                 shop_id: order.shop_id,
                 created_at: order.created_at,
                 recipient_name: [order.address?.recipient_first_name, order.address?.recipient_last_name].filter(Boolean).join(' '),
