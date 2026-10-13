@@ -15,7 +15,7 @@ const renderer = createRenderer({
   setText: (node, text) => { node.text = text }, setElementText: (node, text) => { node.text = text },
   parentNode: node => node.parent, nextSibling: () => null, patchProp: (node, key, previous, value) => { node[key] = value }
 })
-const fixture = () => ({ id: 12, order_code: 'ORD-test', order_name: 'Order ORD-test', created_at: '2026-10-01T10:00:00Z', lock_version: 3,
+const fixture = () => ({ id: 12, order_code: 'ORD-test', order_name: '#pl42_0001', created_at: '2026-10-01T10:00:00Z', lock_version: 3,
   order_status: 'confirmed', financial_status: 'unpaid', fulfillment_status: 'processing',
   allowed_actions: ['shipped', 'cancel'], items: [{ id: 4, product_name: 'Running shoe', sku: 'SKU-42',
     quantity: 2, unit_price: '100.00', line_total: '200.00', variant_data: [{ name: 'Size', value: '42' }] }],
@@ -45,13 +45,13 @@ describe('Test giao diện danh sách Order của người bán', () => {
     mocks.list.mockResolvedValueOnce({ data: [{ ...fixture(), customer_name: 'Minh Anh', recipient_name: 'Other Recipient' }], pagination: { page: 1, totalItems: 1, totalPages: 1 } })
     await mount(SellerOrderListView)
     const html = await renderToString(createSSRApp({ ...SellerOrderListView, setup: () => state }, { currentUser: { id: 1 } }))
-    expect(html).toContain('Order ORD-test')
+    expect(html).toContain('#pl42_0001')
     expect(html).not.toContain('#0012')
     expect(html).not.toContain('Other Recipient')
     expect(html).toContain('Minh Anh')
     expect(html).toContain('220')
     expect(html).toContain('Unpaid')
-    expect(html).toContain('View order Order ORD-test')
+    expect(html).toContain('View order #pl42_0001')
     const headings = [...html.matchAll(/<th\b[^>]*>([^<]*)<\/th>/g)].map(match => match[1])
     expect(headings).toEqual(['Order', 'Customer', 'Financial status', 'Total'])
     expect(html).not.toContain('<th>Fulfillment</th>')
@@ -123,7 +123,8 @@ describe('Test giao diện chi tiết Order của người bán', () => {
   it('Case 1 - Hiển thị thông tin đơn và chỉ cho thao tác được backend cho phép', async () => {
     await mount(SellerOrderDetailView)
     const html = await renderToString(createSSRApp({ ...SellerOrderDetailView, setup: () => state }, { currentUser: { id: 1 } }))
-    for (const text of ['Running shoe', '#0012', 'Mark as shipped', 'Quantity', 'Customer Name', 'buyer@example.com', '0901234567']) expect(html).toContain(text)
+    for (const text of ['Running shoe', '#pl42_0001', 'Mark as shipped', 'Quantity', 'Customer Name', 'buyer@example.com', '0901234567']) expect(html).toContain(text)
+    expect(html).not.toContain('#0012')
     expect(html).not.toContain('Cancel order')
     expect(html).not.toContain('Confirm order')
     expect(html).not.toContain('Record COD payment')
@@ -136,7 +137,7 @@ describe('Test giao diện chi tiết Order của người bán', () => {
     expect(headings.every(position => position >= 0)).toBe(true)
     expect(headings).toEqual([...headings].sort((a, b) => a - b))
     const header = html.match(/<header class="rs-simple-header"[^>]*>([\s\S]*?)<\/header>/)[1]
-    expect(header).toContain('#0012')
+    expect(header).toContain('#pl42_0001')
     expect(header).not.toContain('ORD-test')
     expect(header).toContain('Created At')
     expect(header).not.toContain('<button')

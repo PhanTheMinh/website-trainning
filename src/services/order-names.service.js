@@ -1,17 +1,20 @@
-const sequelize = require('../config/database')
+const { cast, col } = require('sequelize')
+const { Shop, OrderNameCounter } = require('../models')
 
-async function allocateOrderNames(userId, count, transaction) {
+async function allocateOrderNames(shopId, count, transaction) {
     if (!transaction || !Number.isSafeInteger(count) || count < 1) throw new Error('Invalid order name allocation')
-    // INSERT xử lý user lần đầu; UPDATE khóa dòng bộ đếm đến khi transaction kết thúc.
-    await sequelize.query(`INSERT INTO order_name_counters (user_id, last_number) VALUES (:userId, :count)
-        ON DUPLICATE KEY UPDATE last_number = last_number + VALUES(last_number)`, {
-        replacements: { userId, count }, transaction
+    // Một user sở hữu một shop. Khóa shop để cấp số riêng và xử lý lần đầu an toàn.
+    const shop = await Shop.findByPk(shopId, { attributes: ['id', 'owner_user_id'], transaction, lock: transaction.LOCK.UPDATE })
+    if (!shop) throw new Error('Order shop not found')
+    const userId = shop.owner_user_id
+    const [counter] = await OrderNameCounter.findOrCreate({
+        where: { user_id: userId }, defaults: { last_number: 0 },
+        transaction, lock: transaction.LOCK.UPDATE
     })
-    const [rows] = await sequelize.query(
-        'SELECT CAST(last_number AS CHAR) AS last_number FROM order_name_counters WHERE user_id = :userId FOR UPDATE', {
-            replacements: { userId }, transaction
-        })
-    const last = BigInt(rows[0].last_number)
+    await counter.increment('last_number', { by: count, transaction })
+    // Đọc BIGINT dạng chuỗi để không mất chính xác khi số vượt giới hạn Number.
+    await counter.reload({ attributes: ['user_id', [cast(col('last_number'), 'CHAR'), 'last_number']], transaction })
+    const last = BigInt(counter.last_number)
     return Array.from({ length: count }, (_, index) =>
         `#pl${userId}_${String(last - BigInt(count) + 1n + BigInt(index)).padStart(4, '0')}`)
 }

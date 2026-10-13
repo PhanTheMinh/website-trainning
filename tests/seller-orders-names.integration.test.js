@@ -1,4 +1,5 @@
 const request = require('supertest')
+const { v4: uuid } = require('uuid')
 const fixture = require('./helpers/seller-orders-search-fixture')
 const { seed, cleanup, app, agents, shops, orders, Customer, OrderAddress } = fixture
 
@@ -92,5 +93,34 @@ describe('Test API tìm kiếm Order theo tên đơn hàng và tên Customer', (
     it('Case 10 - Từ chối yêu cầu chưa đăng nhập hoặc từ khóa quá 100 ký tự', async () => {
         expect((await request(app).get('/api/shops/me/orders')).status).toBe(401)
         expect((await agents[0].get('/api/shops/me/orders').query({ q: 'a'.repeat(101) })).status).toBe(400)
+    })
+
+    it('Case 11 - Hai người mua cùng shop dùng chung dãy tên của chủ shop và retry giữ nguyên tên', async () => {
+        const customer = await Customer.findByPk(orders[0][0].customer_id)
+        const { OrderNameCounter } = require('../src/models')
+        const before = Number((await OrderNameCounter.findByPk(fixture.users[0].id)).last_number)
+        for (const [index, agent] of [agents[1], agents[0]].entries()) {
+            const variant = fixture.variants[0]
+            const checkout = await agent.post('/api/checkout').send({ request_id: uuid(), items: [{
+                product_id: Number(variant.product_id), variant_id: Number(variant.id), quantity: 1
+            }] })
+            expect(checkout.status).toBe(201)
+            const draft = await agent.patch(`/api/checkout/${checkout.body.data.token}`).send({ version: 1,
+                shipping_address: { first_name: 'Search', last_name: 'Customer', email: customer.email,
+                    phone: '+84901234567', country_code: 'VN', province_state: 'Hải Dương', city: 'Hanoi', street: 'Test street' },
+                shipping_selections: { [shops[0].id]: Number(fixture.rates[0].id) },
+                payment_method_id: checkout.body.data.payment_options[0].id })
+            expect(draft.status).toBe(200)
+            const payload = { checkout_token: draft.body.data.token, version: draft.body.data.version, request_id: uuid() }
+            const created = await agent.post('/api/orders').send(payload)
+            expect(created.status).toBe(201)
+            const order = created.body.data.orders[0]
+            expect(order.order_name).toBe(`#pl${fixture.users[0].id}_${String(before + index + 1).padStart(4, '0')}`)
+            expect(Number(order.user_id)).toBe(Number(fixture.users[index === 0 ? 1 : 0].id))
+            const repeated = await agent.post('/api/orders').send(payload)
+            expect(repeated.status).toBe(201)
+            expect(repeated.body.data.orders[0].order_name).toBe(order.order_name)
+        }
+        expect(Number((await OrderNameCounter.findByPk(fixture.users[0].id)).last_number)).toBe(before + 2)
     })
 })

@@ -1,8 +1,8 @@
 # Kiểm thử tìm kiếm tên Order và Customer
 
 Integration test gọi API Express qua Supertest với MySQL test thật. Fixture tạo hai shop,
-ba khách có email riêng và các checkout nhiều shop. Các tên Order được gán riêng để
-kiểm thử tìm kiếm; bộ test không kiểm tra tính năng tự sinh tên theo user.
+ba khách có email riêng và các checkout nhiều shop. Fixture giữ tên Order do API
+tự sinh theo user chủ shop. Hai buyer mua cùng shop dùng chung dãy số của shop đó.
 
 ```powershell
 node node_modules/jest/bin/jest.js --runInBand tests/seller-orders-names.integration.test.js
@@ -36,11 +36,11 @@ ORDER_SEARCH_E2E khác 1 để các lần chạy Jest thông thường không t�
 
 Kết quả chạy sau khi thêm test:
 
-- Integration tên và liên kết: 15/15 đạt; integration tình huống biên: 41/41 đạt.
+- Integration tên và liên kết: 16/16 đạt; integration tình huống biên: 41/41 đạt.
 - Test service tìm kiếm và sắp xếp: 8/8 đạt.
 - E2E: 7/7 đạt sau khi SellerOrderListView dùng order_name và customer_name từ API.
 - Test search cũ đã được cập nhật theo nghiệp vụ tìm tên, không tìm ID.
-- Lần kiểm tra mới nhất chạy cả bốn file search: 71/71 test đạt.
+- Bốn file search hiện có 72 test; backend đầy đủ đạt 232 test và E2E riêng đạt 7 test.
 - E2E bổ sung tìm một phần tên, trim từ khóa, tải lại trang, xóa search và giữ bộ lọc.
 - Integration bổ sung đầu vào không hợp lệ, ký tự đặc biệt, tên trùng, giới hạn shop,
   sắp xếp khi giá trị bằng nhau, nhiều sản phẩm trong một đơn và shop đình chỉ.

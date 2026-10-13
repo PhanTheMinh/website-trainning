@@ -3,7 +3,7 @@ const { v4: uuid } = require('uuid')
 const app = require('../src/app')
 const sequelize = require('../src/config/database')
 const { User, Shop, Category, Product, ProductVariant, Country, ShippingMethod, ShippingRate,
-    PaymentMethod, CheckoutToken, Customer, Order, OrderItem, OrderAddress } = require('../src/models')
+    PaymentMethod, CheckoutToken, Customer, Order, OrderItem, OrderAddress, OrderNameCounter } = require('../src/models')
 const { hashPassword } = require('../src/utils/hash')
 const { deliveryDate, cents, money } = require('../src/services/orders.service')
 const users = []
@@ -86,7 +86,7 @@ describe('Atomic create order and historical snapshots', () => {
         expect(a.body.data.orders).toHaveLength(2)
         const orders = a.body.data.orders
         expect(orders.map(order => order.order_name)).toEqual([
-            `#pl${users[0].id}_0001`, `#pl${users[0].id}_0002`
+            `#pl${users[0].id}_0001`, `#pl${users[1].id}_0001`
         ])
         expect(b.body.data.orders.map(order => order.order_name)).toEqual(orders.map(order => order.order_name))
         await expect(Order.update({ order_name: orders[0].order_name }, { where: { id: orders[1].id } }))
@@ -209,16 +209,12 @@ describe('Atomic create order and historical snapshots', () => {
     it('rolls back everything when one shop is out of stock or COD is disabled', async () => {
         const d = await draft()
         const stockBefore = (await variants[0].reload()).stock_quantity
-        const [counterBefore] = await sequelize.query('SELECT last_number FROM order_name_counters WHERE user_id = :id', {
-            replacements: { id: users[0].id }
-        })
+        const counterBefore = await OrderNameCounter.findByPk(users[0].id, { raw: true })
         const countBefore = await Order.count()
         await variants[1].update({ stock_quantity: 1 })
         expect((await buyer.post('/api/orders').send(payload(d))).status).toBe(409)
         expect((await variants[0].reload()).stock_quantity).toBe(stockBefore)
-        const [counterAfter] = await sequelize.query('SELECT last_number FROM order_name_counters WHERE user_id = :id', {
-            replacements: { id: users[0].id }
-        })
+        const counterAfter = await OrderNameCounter.findByPk(users[0].id, { raw: true })
         expect(counterAfter).toEqual(counterBefore)
         expect(await Order.count()).toBe(countBefore)
         await variants[1].update({ stock_quantity: 90 })

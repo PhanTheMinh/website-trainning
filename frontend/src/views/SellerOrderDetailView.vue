@@ -30,7 +30,7 @@ let request = 0
 onBeforeUnmount(() => { request++ })
 const actionInfo = computed(() => orderActions[action.value] || { label: '', description: '' })
 const customerName = computed(() => [order.value?.address?.recipient_first_name, order.value?.address?.recipient_last_name].filter(Boolean).join(' '))
-const orderName = computed(() => `#${String(order.value?.id).padStart(4, '0')}`)
+const orderName = computed(() => order.value?.order_name || '—')
 const shippingActions = computed(() => (order.value?.allowed_actions || []).filter(value => !['mark-paid', 'confirm', 'cancel'].includes(value)))
 const paymentActions = computed(() => (order.value?.allowed_actions || []).filter(value => value === 'mark-paid'))
 const terminalError = computed(() => [400, 401, 403, 404].includes(errorStatus.value))

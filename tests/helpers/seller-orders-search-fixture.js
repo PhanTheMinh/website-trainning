@@ -55,11 +55,10 @@ async function seed() {
             orders.push(created.body.data.orders)
         }
         await Order.update({ payment_status: 'paid' }, { where: { id: orders[1][0].id } })
-        // Gán tên riêng cho test tìm kiếm; không kiểm tra cơ chế tự sinh tên đơn.
+        // Giữ tên do API tự sinh theo chủ shop; chỉ đổi order_code để kiểm tra phạm vi search.
         for (const [index, order] of orders.flat().entries()) {
             order.order_code = `SEARCH-${stamp.slice(0, 8)}-${orders[0][0].id}-${index}`
-            order.order_name = `#pl${users[0].id}_${String(index + 1).padStart(4, '0')}`
-            await Order.update({ order_code: order.order_code, order_name: order.order_name }, { where: { id: order.id } })
+            await Order.update({ order_code: order.order_code }, { where: { id: order.id } })
         }
 
 }
@@ -77,6 +76,6 @@ async function cleanup() {
         } finally { await sequelize.close() }
 
 }
-module.exports = { seed, cleanup, app, sequelize, users, shops, agents, orders, Customer, Order, OrderAddress }
+module.exports = { seed, cleanup, app, sequelize, users, shops, agents, orders, Customer, Order, OrderAddress, variants, rates }
 
 
