@@ -115,9 +115,9 @@ describe('Test API tìm kiếm Order với từ khóa số và các tình huốn
         expect(response.status).toBe(400)
     })
 
-    it('Case 8 - Nhiều đơn cùng tên trả đủ kết quả và phân trang không lặp', async () => {
+    it('Case 8 - Nhiều đơn cùng tiền tố tên trả đủ kết quả và phân trang không lặp', async () => {
         const ownIds = orders.map(group => group[0].id)
-        await withNames(ownIds.map(id => [id, { order_name: 'Same Order Name' }]), [], async () => {
+        await withNames(ownIds.map(id => [id, { order_name: `Same Order Name ${id}` }]), [], async () => {
             const found = []
             for (let page = 1; page <= 3; page++) {
                 const result = await search('Same Order Name', { page, limit: 1, sort: 'oldest' })
@@ -139,10 +139,10 @@ describe('Test API tìm kiếm Order với từ khóa số và các tình huốn
             })
     })
 
-    it('Case 10 - Hai shop có tên đơn giống nhau vẫn chỉ trả đơn của shop đăng nhập', async () => {
+    it('Case 10 - Hai shop có tên đơn cùng tiền tố vẫn chỉ trả đơn của shop đăng nhập', async () => {
         const own = orders[0][0], foreign = orders[0][1]
-        await withNames([[own.id, { order_name: 'Shared Shop Name' }],
-            [foreign.id, { order_name: 'Shared Shop Name' }]], [], async () => {
+        await withNames([[own.id, { order_name: 'Shared Shop Name A' }],
+            [foreign.id, { order_name: 'Shared Shop Name B' }]], [], async () => {
             expect((await search('Shared Shop Name')).data.map(row => row.id)).toEqual([own.id])
             const other = await agents[1].get('/api/shops/me/orders').query({ q: 'Shared Shop Name' })
             expect(other.status).toBe(200)
@@ -155,7 +155,7 @@ describe('Test API tìm kiếm Order với từ khóa số và các tình huốn
         const target = orders[0][0]
         // Thay mọi tên đơn để chỉ một bản ghi chứa ký tự được kiểm tra.
         const changes = orders.flat().map(row => [row.id,
-            { order_name: row.id === target.id ? `Special ${keyword} End` : 'Plain Order' }])
+            { order_name: row.id === target.id ? `Special ${keyword} End` : `Plain Order ${row.id}` }])
         await withNames(changes, [], async () => {
             const result = await search(`Special ${keyword} End`)
             expect(result.data.map(row => row.id)).toEqual([target.id])
@@ -180,7 +180,7 @@ describe('Test API tìm kiếm Order với từ khóa số và các tình huốn
     it.each(['newest', 'oldest', 'total_desc', 'total_asc'])(
         'Case 13 - Sắp xếp %s ổn định khi thời gian và tổng tiền bằng nhau', async sort => {
         const ids = orders.map(group => group[0].id)
-        await withNames(ids.map(id => [id, { order_name: 'Tie Order', order_total: '130000.00',
+        await withNames(ids.map(id => [id, { order_name: `Tie Order ${id}`, order_total: '130000.00',
             created_at: new Date('2026-01-01T00:00:00Z') }]), [], async () => {
             const found = []
             for (let page = 1; page <= 3; page++) {
@@ -195,7 +195,7 @@ describe('Test API tìm kiếm Order với từ khóa số và các tình huốn
         const target = orders[0][0]
         const row = await Order.findByPk(target.id)
         // Tên chỉ gồm chữ để số tiền không vô tình khớp tên đơn.
-        await withNames(orders.flat().map(order => [order.id, { order_name: 'Plain Name' }]), [], async () => {
+        await withNames(orders.flat().map((order, index) => [order.id, { order_name: `Plain Name ${String.fromCharCode(65 + index)}` }]), [], async () => {
             expect((await search(String(row.get(field)))).data).toEqual([])
         })
     })

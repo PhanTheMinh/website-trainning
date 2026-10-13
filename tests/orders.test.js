@@ -85,6 +85,12 @@ describe('Atomic create order and historical snapshots', () => {
         expect(a.body.data.orders.map(order => order.id)).toEqual(b.body.data.orders.map(order => order.id))
         expect(a.body.data.orders).toHaveLength(2)
         const orders = a.body.data.orders
+        expect(orders.map(order => order.order_name)).toEqual([
+            `#pl${users[0].id}_0001`, `#pl${users[0].id}_0002`
+        ])
+        expect(b.body.data.orders.map(order => order.order_name)).toEqual(orders.map(order => order.order_name))
+        await expect(Order.update({ order_name: orders[0].order_name }, { where: { id: orders[1].id } }))
+            .rejects.toMatchObject({ name: 'SequelizeUniqueConstraintError' })
         expect(orders[0]).toMatchObject({ sub_total: '200000.20', shipping_fee: '30000.00', order_total: '230000.20', status: 'pending' })
         expect(orders[1].order_total).toBe('120000.50')
         expect(orders[0].shipping_method_name).toBe('Standard')
@@ -203,10 +209,17 @@ describe('Atomic create order and historical snapshots', () => {
     it('rolls back everything when one shop is out of stock or COD is disabled', async () => {
         const d = await draft()
         const stockBefore = (await variants[0].reload()).stock_quantity
+        const [counterBefore] = await sequelize.query('SELECT last_number FROM order_name_counters WHERE user_id = :id', {
+            replacements: { id: users[0].id }
+        })
         const countBefore = await Order.count()
         await variants[1].update({ stock_quantity: 1 })
         expect((await buyer.post('/api/orders').send(payload(d))).status).toBe(409)
         expect((await variants[0].reload()).stock_quantity).toBe(stockBefore)
+        const [counterAfter] = await sequelize.query('SELECT last_number FROM order_name_counters WHERE user_id = :id', {
+            replacements: { id: users[0].id }
+        })
+        expect(counterAfter).toEqual(counterBefore)
         expect(await Order.count()).toBe(countBefore)
         await variants[1].update({ stock_quantity: 90 })
         await payments[1].update({ is_active: false })
@@ -294,7 +307,7 @@ describe('Atomic create order and historical snapshots', () => {
         expect((await variants[0].reload()).stock_quantity).toBe(stockBefore)
         expect((await buyer.get(`/api/orders/${a.id}`)).body.data.status).toBe('completed')
         expect((await other.get(`/api/shops/me/orders/${b.id}`)).body.data.order_status).toBe('pending')
-        const filtered = await buyer.get('/api/shops/me/orders').query({ fulfillment_status: 'delivered', financial_status: 'paid', q: a.order_code })
+        const filtered = await buyer.get('/api/shops/me/orders').query({ fulfillment_status: 'delivered', financial_status: 'paid', q: a.order_name })
         expect(filtered.body.pagination.totalItems).toBe(1)
     })
     it('cancels once, restores inventory once, and leaves other shop orders and checkout completion intact', async () => {

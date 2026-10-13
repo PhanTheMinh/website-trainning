@@ -1,6 +1,6 @@
 const { DataTypes } = require('sequelize')
 const sequelize = require('../config/database')
-const schema = require('../database/order-schema-v3')(DataTypes)
+const schema = require('../database/order-schema-v4')(DataTypes)
 const names = { GeoCountry: 'geo_countries', Province: 'provinces', Customer: 'customers',
     Order: 'orders', OrderItem: 'order_items', OrderAddress: 'order_addresses', OrderEvent: 'order_events' }
 

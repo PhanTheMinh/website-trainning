@@ -7,6 +7,7 @@ const { CheckoutToken, Shop, Product, ProductVariant, ProductOption,
 const { validatePurchaseItems } = require('./products.service')
 const { calculate, resolvePayment } = require('./checkout.service')
 const { finalAddressSchema } = require('../validators/orders.validator')
+const { allocateOrderNames } = require('./order-names.service')
 
 const fail = (message, statusCode, publicCode) => Object.assign(new Error(message), { statusCode, publicCode })
 const parse = (value, fallback = {}) => {
@@ -133,8 +134,9 @@ async function createInTransaction(userId, data, transaction) {
     const [customer] = await Customer.findOrCreate({ where: { email_key: address.customer.email_key },
         defaults: address.customer, transaction })
     await draft.update({ order_request_id: data.request_id }, { transaction })
+    const orderNames = await allocateOrderNames(userId, shopIds.length, transaction)
     const now = new Date()
-    for (const shopId of shopIds) {
+    for (const [shopIndex, shopId] of shopIds.entries()) {
         const lines = current.items.filter(item => item.shop_id === shopId)
         const selected = current.shipping.find(entry => entry.shop_id === shopId).selected
         const method = await ShippingMethod.findByPk(selected.method_id, { transaction })
@@ -150,7 +152,7 @@ async function createInTransaction(userId, data, transaction) {
         const code = `ORD-${uuid()}`
         const paymentMethod = await PaymentMethod.findByPk(payment.selected.method_ids[shopId], { transaction })
         const order = await Order.create({ checkout_id: draft.id, user_id: userId, customer_id: customer.id, shop_id: shopId,
-            order_code: code, order_name: `Order ${code}`, status: 'pending', currency: 'VND',
+            order_code: code, order_name: orderNames[shopIndex], status: 'pending', currency: 'VND',
             sub_total: money(subTotal), shipping_fee: money(shippingFee), order_total: total,
             shipping_method_id: method.id, shipping_rate_id: rate.id, shipping_method_name: method.name,
             shipping_method_code: method.code, min_delivery_days: minDays, max_delivery_days: maxDays,
