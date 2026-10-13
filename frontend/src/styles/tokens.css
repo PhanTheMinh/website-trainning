@@ -82,6 +82,9 @@ button, a, input, select, textarea, summary { -webkit-tap-highlight-color: trans
   line-height: 1.4; text-decoration: none; cursor: pointer; transition: opacity 160ms ease, background 160ms ease;
 }
 .rs-button:hover:not(:disabled) { opacity: .88; }
+.rs-back-button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 40px; height: 40px; padding: 0; border: 1px solid transparent; border-radius: 6px; background: var(--rs-primary); color: var(--rs-on-primary); text-decoration: none; cursor: pointer; transition: opacity 160ms ease; }
+.rs-back-button:hover { opacity: .88; }
+.rs-back-button:focus-visible { outline: 2px solid var(--rs-primary); outline-offset: 3px; }
 .rs-button--secondary { background: var(--rs-surface); border-color: var(--rs-border); color: var(--rs-text); }
 .rs-button--quiet { background: transparent; color: var(--rs-text); }
 .rs-button--danger { background: var(--rs-error-bg); color: var(--rs-error); }

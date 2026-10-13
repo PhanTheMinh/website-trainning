@@ -1,7 +1,7 @@
 <script setup>
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import UiButton from './UiButton.vue'
-const props = defineProps({ open: Boolean, busy: Boolean, title: { type: String, required: true }, description: { type: String, default: '' }, error: { type: String, default: '' }, confirmLabel: { type: String, default: 'Delete' } })
+const props = defineProps({ open: Boolean, busy: Boolean, title: { type: String, required: true }, description: { type: String, default: '' }, error: { type: String, default: '' }, confirmLabel: { type: String, default: 'Delete' }, busyLabel: { type: String, default: 'Deleting…' }, confirmVariant: { type: String, default: 'danger' } })
 const emit = defineEmits(['cancel', 'confirm'])
 const dialog = ref(null)
 watch(() => props.open, async open => {
@@ -16,8 +16,9 @@ onBeforeUnmount(() => { if (dialog.value?.open) dialog.value.close() })
   <Teleport to="body">
     <dialog ref="dialog" class="rs-confirm" aria-labelledby="confirm-title" aria-describedby="confirm-description" @cancel.prevent="cancel">
       <h2 id="confirm-title">{{ title }}</h2><p id="confirm-description">{{ description }}</p>
+      <slot />
       <p v-if="error" class="rs-alert rs-alert--error" role="alert">{{ error }}</p>
-      <div class="rs-confirm__actions"><UiButton variant="secondary" :disabled="busy" autofocus @click="cancel">Cancel</UiButton><UiButton variant="danger" :busy="busy" @click="emit('confirm')">{{ busy ? 'Deleting…' : confirmLabel }}</UiButton></div>
+      <div class="rs-confirm__actions"><UiButton variant="secondary" :disabled="busy" autofocus @click="cancel">Cancel</UiButton><UiButton :variant="confirmVariant" :busy="busy" @click="emit('confirm')">{{ busy ? busyLabel : confirmLabel }}</UiButton></div>
     </dialog>
   </Teleport>
 </template>

@@ -57,6 +57,31 @@ beforeEach(() => {
 afterEach(() => { app?.unmount(); vi.useRealTimers(); vi.unstubAllGlobals() })
 
 describe('Checkout autosave', () => {
+  it('keeps shop products and shipping totals independent when shipping changes', async () => {
+    mocks.get.mockResolvedValueOnce({ data: { ...data(1),
+      items: [
+        { product_id: 1, variant_id: 2, shop_id: 10, name: 'Running shoe', quantity: 2, price: 100.25, shop: { name: 'Shop A' } },
+        { product_id: 3, variant_id: 4, shop_id: 20, name: 'Running shirt', quantity: 1, price: 50, shop: { name: 'Shop B' } }
+      ], destinations: [{ country_code: 'VN' }], shipping_selections: { 10: 3, 20: 5 },
+      shipping: [
+        { shop_id: 10, options: [{ rate_id: 3, name: 'Standard', fixed_fee: 20 }, { rate_id: 4, name: 'Express', fixed_fee: 35 }] },
+        { shop_id: 20, options: [{ rate_id: 5, name: 'Standard', fixed_fee: 10 }] }
+      ] } })
+    await mount()
+    const [shopA, shopB] = state.shopGroups
+    expect(shopA.items.map(item => item.name)).toEqual(['Running shoe'])
+    expect(shopB.items.map(item => item.name)).toEqual(['Running shirt'])
+    expect(state.shopTotal(shopA)).toBe(220.5)
+    expect(state.shopTotal(shopB)).toBe(60)
+    expect(state.orderTotal).toBe(280.5)
+    state.chooseShipping(10, 4)
+    expect(state.shopTotal(shopA)).toBe(235.5)
+    expect(state.shopTotal(shopB)).toBe(60)
+    expect(state.orderTotal).toBe(295.5)
+    state.selectedRates = { 20: 5 }
+    expect(state.shopTotal(shopA)).toBeNull()
+    expect(state.shippingReady).toBe(false)
+  })
   it('renders the simplified address form without detailed address fields or street lookups', async () => {
     mocks.get.mockResolvedValueOnce({ data: { ...data(1), items: [{ product_id: 1, variant_id: 2, shop_id: 10, name: 'Test shoe', quantity: 1, price: 100 }] } })
     await mount()
