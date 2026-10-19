@@ -18,20 +18,20 @@ describe('Test bộ đếm tên Order riêng theo chủ shop', () => {
         try { await User.destroy({ where: { id: users.map(user => user.id) } }) }
         finally { await sequelize.close() }
     })
-    it('Case 1 - Mỗi chủ shop bắt đầu riêng từ 0001 và tăng theo số Order của shop', async () => {
-        expect(await allocate(users[0], 2)).toEqual([`#pl${users[0].id}_0001`, `#pl${users[0].id}_0002`])
-        expect(await allocate(users[1], 1)).toEqual([`#pl${users[1].id}_0001`])
+    it('Case 1 - Mỗi chủ shop bắt đầu riêng từ 1 không thêm số 0 đầu và tăng theo số Order của shop', async () => {
+        expect(await allocate(users[0], 2)).toEqual([`#pl${users[0].id}_1`, `#pl${users[0].id}_2`])
+        expect(await allocate(users[1], 1)).toEqual([`#pl${users[1].id}_1`])
     })
     it('Case 2 - Hai transaction đồng thời không cấp trùng tên', async () => {
         const groups = await Promise.all([allocate(users[0], 2), allocate(users[0], 2)])
-        expect(groups.flat().sort()).toEqual([3, 4, 5, 6].map(n => `#pl${users[0].id}_${String(n).padStart(4, '0')}`))
+        expect(groups.flat().sort()).toEqual([3, 4, 5, 6].map(n => `#pl${users[0].id}_${n}`))
     })
     it('Case 3 - Rollback không tiêu thụ số và không thay đổi bộ đếm', async () => {
         await expect(sequelize.transaction(async transaction => {
             await allocateOrderNames(shops[0].id, 2, transaction)
             throw new Error('Lỗi tạo đơn giả lập')
         })).rejects.toThrow('Lỗi tạo đơn giả lập')
-        expect(await allocate(users[0], 1)).toEqual([`#pl${users[0].id}_0007`])
+        expect(await allocate(users[0], 1)).toEqual([`#pl${users[0].id}_7`])
     })
     it('Case 4 - Sau 9999 tiếp tục 10000 mà không cắt chữ số', async () => {
         await OrderNameCounter.update({ last_number: 9998 }, { where: { user_id: users[1].id } })
@@ -43,6 +43,6 @@ describe('Test bộ đếm tên Order riêng theo chủ shop', () => {
     })
     it('Case 6 - Hai yêu cầu đầu tiên cùng user vẫn khởi tạo bộ đếm không trùng', async () => {
         const groups = await Promise.all([allocate(users[2], 1), allocate(users[2], 1)])
-        expect(groups.flat().sort()).toEqual([`#pl${users[2].id}_0001`, `#pl${users[2].id}_0002`])
+        expect(groups.flat().sort()).toEqual([`#pl${users[2].id}_1`, `#pl${users[2].id}_2`])
     })
 })

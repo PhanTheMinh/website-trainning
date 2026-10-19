@@ -115,7 +115,7 @@ describe('Test API tìm kiếm Order theo tên đơn hàng và tên Customer', (
             const created = await agent.post('/api/orders').send(payload)
             expect(created.status).toBe(201)
             const order = created.body.data.orders[0]
-            expect(order.order_name).toBe(`#pl${fixture.users[0].id}_${String(before + index + 1).padStart(4, '0')}`)
+            expect(order.order_name).toBe(`#pl${fixture.users[0].id}_${before + index + 1}`)
             expect(Number(order.user_id)).toBe(Number(fixture.users[index === 0 ? 1 : 0].id))
             const repeated = await agent.post('/api/orders').send(payload)
             expect(repeated.status).toBe(201)

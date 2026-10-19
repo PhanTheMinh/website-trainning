@@ -118,6 +118,31 @@ describe('Checkout persistence and server totals', () => {
         const restored = await owner.get(`/api/checkout/${draft.token}`)
         expect(restored.body.data.items.find(item => item.variant_id === items[0].variant_id).quantity).toBe(3)
     })
+    it('Gộp variant trùng và từ chối tổng quantity vượt giới hạn trước khi lưu', async () => {
+        const item = items[0]
+        const stockBefore = (await variants[0].reload()).stock_quantity
+        await variants[0].update({ stock_quantity: 20000 })
+        try {
+            const accepted = await owner.post('/api/checkout').send({ request_id: uuid(),
+                items: [{ ...item, quantity: 4000 }, { ...item, quantity: 6000 }] })
+            expect(accepted.status).toBe(201)
+            expect(accepted.body.data.items).toHaveLength(1)
+            expect(accepted.body.data.items[0].quantity).toBe(10000)
+
+            const requestId = uuid()
+            const rejected = await owner.post('/api/checkout').send({ request_id: requestId,
+                items: [{ ...item, quantity: 6000 }, { ...item, quantity: 4001 }] })
+            expect(rejected.status).toBe(400)
+            expect(await CheckoutToken.count({ where: { user_id: users[0].id, request_id: requestId } })).toBe(0)
+
+            const update = await owner.patch(`/api/checkout/${accepted.body.data.token}`).send({ version: 1,
+                items: [{ ...item, quantity: 6000 }, { ...item, quantity: 4001 }] })
+            expect(update.status).toBe(400)
+            const saved = await owner.get(`/api/checkout/${accepted.body.data.token}`)
+            expect(saved.body.data.version).toBe(1)
+            expect(saved.body.data.items[0].quantity).toBe(10000)
+        } finally { await variants[0].update({ stock_quantity: stockBefore }) }
+    })
     it('offers COD for all shops, persists it, and rejects unavailable payment methods', async () => {
         const draft = await create()
         expect(draft.payment_options).toHaveLength(1)

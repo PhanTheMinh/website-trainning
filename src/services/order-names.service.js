@@ -16,7 +16,7 @@ async function allocateOrderNames(shopId, count, transaction) {
     await counter.reload({ attributes: ['user_id', [cast(col('last_number'), 'CHAR'), 'last_number']], transaction })
     const last = BigInt(counter.last_number)
     return Array.from({ length: count }, (_, index) =>
-        `#pl${userId}_${String(last - BigInt(count) + 1n + BigInt(index)).padStart(4, '0')}`)
+        `#pl${userId}_${last - BigInt(count) + 1n + BigInt(index)}`)
 }
 
 module.exports = { allocateOrderNames }

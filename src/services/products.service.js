@@ -1873,6 +1873,11 @@ async function validatePurchaseItems(items, existingTransaction = null) {
             left.variant_id - right.variant_id
     )
 
+    // Duplicate cart lines must obey the same limit as a single checkout/order line.
+    if (orderedItems.some(item => !Number.isSafeInteger(item.quantity) || item.quantity < 1 || item.quantity > 10000)) {
+        throw createClientError('Product variant quantity must be between 1 and 10000', 400)
+    }
+
     const validateInTransaction = async (transaction) => {
         const validatedItems = []
 

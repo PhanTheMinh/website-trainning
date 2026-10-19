@@ -86,7 +86,7 @@ describe('Atomic create order and historical snapshots', () => {
         expect(a.body.data.orders).toHaveLength(2)
         const orders = a.body.data.orders
         expect(orders.map(order => order.order_name)).toEqual([
-            `#pl${users[0].id}_0001`, `#pl${users[1].id}_0001`
+            `#pl${users[0].id}_1`, `#pl${users[1].id}_1`
         ])
         expect(b.body.data.orders.map(order => order.order_name)).toEqual(orders.map(order => order.order_name))
         await expect(Order.update({ order_name: orders[0].order_name }, { where: { id: orders[1].id } }))
