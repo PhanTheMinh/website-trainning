@@ -7,6 +7,8 @@ import CategoriesView from './views/CategoriesView.vue'
 import CartView from './views/CartView.vue'
 import CheckoutView from './views/CheckoutView.vue'
 import OrderDetailView from './views/OrderDetailView.vue'
+import SellerOrderListView from './views/SellerOrderListView.vue'
+import SellerOrderDetailView from './views/SellerOrderDetailView.vue'
 import AddProductView from './views/AddProductView.vue'
 import ProductDetailView from './views/ProductDetailView.vue'
 import EditProductView from './views/EditProductView.vue'
@@ -28,6 +30,8 @@ import NotFoundView from './views/NotFoundView.vue'
 const router = createRouter({
   history: createWebHistory(),
   routes: [
+    { path: '/me/manage/orders', name: 'seller-order-list', component: SellerOrderListView, meta: { requiresAuth: true } },
+    { path: '/me/manage/orders/:id', name: 'seller-order-detail', component: SellerOrderDetailView, meta: { requiresAuth: true } },
     { path: '/checkout/:checkoutToken/orders', name: 'checkout-orders', component: OrderDetailView, meta: { requiresAuth: true } },
     { path: '/orders/:id', name: 'order-detail', component: OrderDetailView, meta: { requiresAuth: true } },
     {

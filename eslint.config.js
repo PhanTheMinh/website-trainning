@@ -11,6 +11,7 @@ module.exports = [
             'src/**/*.js',
             'migrations/**/*.js',
             'scripts/**/*.js',
+            'scripts/**/*.cjs',
             'tests/**/*.js'
         ],
         languageOptions: {

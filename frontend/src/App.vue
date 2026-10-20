@@ -317,6 +317,8 @@ onBeforeUnmount(() => {
           'product-trash',
           'my-shop',
           'management',
+          'seller-order-list',
+          'seller-order-detail',
           'shipping-methods',
           'shipping-method-list',
           'shipping-method-create',
